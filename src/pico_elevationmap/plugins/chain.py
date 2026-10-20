@@ -1,23 +1,47 @@
-"""插件链装配（Phase 1）：校验插件声明并落盘 YAML，供上游 PluginManager 加载。
+"""插件链装配（Phase 2）：校验插件声明、落盘 YAML、注册自有插件。
 
-上游 elevation_mapping_cupy.plugins.PluginManager 可直接复用 —— 它从 YAML 读取
+上游 elevation_mapping_cupy.plugins.PluginManager 直接复用 —— 它从 YAML 读取
 插件声明（enable / type / layer_name / fill_nan / is_height_layer / extra_params），
-动态 import elevation_mapping_cupy.plugins 包下的插件类（min_filter / smooth_filter /
-inpainting / erosion / ...）。本模块只负责把程序内的声明字典做结构校验后写成
-该 YAML；真正的计算链在上游 PluginBase.__call__（纯函数式 map → map）。
+并以相对 import 从 elevation_mapping_cupy.plugins 包内加载插件类。自有插件
+（geo_slope / geo_traversability）通过 register_custom_plugins() 在加载前
+alias 进 sys.modules，从而进入同一条插件链，无需 fork 上游包。
 """
 
 from __future__ import annotations
 
+import importlib
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-__all__ = ["validate_plugin_decl", "write_plugin_config"]
+__all__ = ["CUSTOM_PLUGINS", "register_custom_plugins", "validate_plugin_decl", "write_plugin_config"]
+
+# 自有插件：插件名（YAML key）-> 实现模块。每个插件独占一个模块 —— 上游
+# PluginManager 会把模块内所有 PluginBase 子类都实例化。
+CUSTOM_PLUGINS = {
+    "geo_slope": "pico_elevationmap.plugins.geo_slope",
+    "geo_traversability": "pico_elevationmap.plugins.geo_traversability",
+}
 
 _REQUIRED_KEYS = {"enable", "layer_name", "extra_params"}
+
+
+def register_custom_plugins() -> None:
+    """把自有插件模块 alias 成 elevation_mapping_cupy.plugins.<name>。
+
+    上游 PluginManager.init 用相对 import 从自家包加载插件；sys.modules
+    命中后返回的是我们的模块，其中的 PluginBase 子类（与上游同一基类）
+    随之被实例化。幂等，可重复调用。
+    """
+    import elevation_mapping_cupy.plugins  # noqa: F401  —— 确保目标包已加载
+
+    for plugin_name, module_name in CUSTOM_PLUGINS.items():
+        alias = f"elevation_mapping_cupy.plugins.{plugin_name}"
+        if alias not in sys.modules:
+            sys.modules[alias] = importlib.import_module(module_name)
 
 
 def validate_plugin_decl(decl: Any) -> dict[str, dict[str, Any]]:

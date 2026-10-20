@@ -10,8 +10,8 @@ import pytest
 import scripts.cli as cli
 
 SUBCOMMANDS = ("run", "replay", "bench", "export")
-# Phase 1: run 已是真实 pipeline（scripts/pipeline/run.py），其余仍是 stub
-STUB_SUBCOMMANDS = ("replay", "bench", "export")
+# Phase 2: run / replay / export 已实现；bench 待 Phase 3（torch 后端）仍是 stub
+STUB_SUBCOMMANDS = ("bench",)
 PACKAGES = (
     "pico_elevationmap",
     "pico_elevationmap.core",
@@ -53,12 +53,14 @@ def test_cli_stubs_exit_zero(
 
 
 def test_cli_run_help_exit_zero(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-    """run 子命令已实现：--help 在无 GPU 环境也必须可用（GPU 栈为懒加载）。"""
-    monkeypatch.setattr("sys.argv", ["pico-elevationmap", "run", "--help"])
-    with pytest.raises(SystemExit) as exc_info:
-        cli.main()
-    assert exc_info.value.code == 0
-    assert "--config" in capsys.readouterr().out
+    """已实现子命令的 --help 在无 GPU 环境也必须可用（GPU 栈为懒加载）。"""
+    expected_flag = {"run": "--config", "replay": "--input", "export": "--input"}
+    for cmd, flag in expected_flag.items():
+        monkeypatch.setattr("sys.argv", ["pico-elevationmap", cmd, "--help"])
+        with pytest.raises(SystemExit) as exc_info:
+            cli.main()
+        assert exc_info.value.code == 0
+        assert flag in capsys.readouterr().out
 
 
 def test_cli_unknown_command_exits_2(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -70,7 +72,7 @@ def test_cli_unknown_command_exits_2(monkeypatch: pytest.MonkeyPatch, capsys: py
 
 
 def test_version() -> None:
-    assert importlib.metadata.version("pico-elevationmap") == "0.2.0"
+    assert importlib.metadata.version("pico-elevationmap") == "0.3.0"
 
 
 def test_synthetic_pointcloud_fixture(synthetic_pointcloud: list[tuple[float, float, float]]) -> None:

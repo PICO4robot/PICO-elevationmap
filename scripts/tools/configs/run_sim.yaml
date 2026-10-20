@@ -32,6 +32,30 @@ plugins:
     is_height_layer: true
     extra_params:
       input_layer_name: min_filter
+  inpainting:
+    enable: true
+    layer_name: inpainted
+    fill_nan: false
+    is_height_layer: true
+    extra_params:
+      method: telea        # telea | ns
+  geo_slope:
+    enable: true
+    layer_name: slope
+    fill_nan: false
+    is_height_layer: false
+    extra_params:
+      input_layer_name: smooth   # 坡度基于平滑后的高程
+  geo_traversability:
+    enable: true
+    layer_name: traversability_geo
+    fill_nan: false
+    is_height_layer: false
+    extra_params:
+      input_layer_name: smooth
+      slope_thresh: 0.5          # rise/run ≈ 26.6°
+      roughness_thresh: 0.05     # 局部高程 std 门限（米）
+      roughness_window: 5
 
 sim:
   steps: 60

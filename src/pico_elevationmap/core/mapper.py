@@ -27,12 +27,20 @@ from elevation_mapping_cupy.elevation_mapping import ElevationMap
 from elevation_mapping_cupy.parameter import Parameter
 
 from pico_elevationmap.core.pose_buffer import PoseBuffer
-from pico_elevationmap.plugins.chain import validate_plugin_decl, write_plugin_config
+from pico_elevationmap.plugins.chain import (
+    CUSTOM_PLUGINS,
+    register_custom_plugins,
+    validate_plugin_decl,
+    write_plugin_config,
+)
 from pico_elevationmap.sensors.config import SensorSourceConfig, parse_sources
 
 __all__ = ["ElevationMapper", "MapperConfig", "MapStats"]
 
 _DEFAULT_SOURCE = SensorSourceConfig(name="default")
+
+# 上游内建法线层（get_map_with_name_ref 支持，但 exists_layer 不覆盖，单独登记）
+_NORMAL_LAYER_NAMES = ("normal_x", "normal_y", "normal_z")
 
 
 @dataclass
@@ -66,6 +74,13 @@ class MapperConfig:
     def __post_init__(self) -> None:
         if self.sensor_noise_factor is None:
             self.sensor_noise_factor = self.primary_source.upstream_noise_factor
+        # 自有 geo_* 插件需要 resolution；缺省注入 map.resolution，避免配置重复
+        for name, decl in self.plugins.items():
+            if not isinstance(decl, dict):
+                continue
+            extra = decl.get("extra_params")
+            if isinstance(extra, dict) and (decl.get("type", name)) in CUSTOM_PLUGINS:
+                extra.setdefault("resolution", self.resolution)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> MapperConfig:
@@ -143,6 +158,7 @@ class ElevationMapper:
         plugin_dir: str | Path | None = None,
     ) -> None:
         self.config = config or MapperConfig()
+        register_custom_plugins()  # 自有插件（geo_*）alias 进上游包命名空间
         plugin_path = write_plugin_config(self.config.plugins, directory=plugin_dir)
         param = Parameter(
             resolution=self.config.resolution,
@@ -237,11 +253,15 @@ class ElevationMapper:
 
     # ── 图层读取 ──────────────────────────────────────────────────────────
     def available_layers(self) -> list[str]:
-        """可读图层：7 个基础层 + 已配置的插件层。"""
-        return self._map.list_layers()
+        """可读图层：7 个基础层 + 上游内建法线层 + 已配置的插件层。"""
+        return self._map.list_layers() + [n for n in _NORMAL_LAYER_NAMES if n not in self._map.list_layers()]
 
     def get_layer(self, name: str) -> np.ndarray:
         """取单个图层（numpy 副本，float32；高度层无效区域为 NaN）。"""
+        if name in _NORMAL_LAYER_NAMES:
+            buf = np.zeros((self.cell_n - 2, self.cell_n - 2), dtype=np.float32)
+            self._map.get_map_with_name_ref(name, buf)
+            return buf.copy()
         if not self._map.exists_layer(name):
             raise KeyError(f"unknown layer '{name}', available: {self.available_layers()}")
         return self._map.export_layers([name])[name]
@@ -249,10 +269,14 @@ class ElevationMapper:
     def get_map(self, layers: Sequence[str] | None = None) -> dict[str, np.ndarray]:
         """取多图层（缺省为全部可读图层），{name: (cell_n-2)^2 float32}。"""
         names = list(layers) if layers is not None else self.available_layers()
-        missing = [n for n in names if not self._map.exists_layer(n)]
+        missing = [n for n in names if n not in _NORMAL_LAYER_NAMES and not self._map.exists_layer(n)]
         if missing:
             raise KeyError(f"unknown layers {missing}, available: {self.available_layers()}")
-        return self._map.export_layers(names)
+        out = self._map.export_layers([n for n in names if n not in _NORMAL_LAYER_NAMES])
+        for n in names:
+            if n in _NORMAL_LAYER_NAMES:
+                out[n] = self.get_layer(n)
+        return out
 
     # ── 统计 ──────────────────────────────────────────────────────────────
     def stats(self) -> MapStats:
