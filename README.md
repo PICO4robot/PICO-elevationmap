@@ -11,6 +11,7 @@ summarizing what each branch contains.
 |---|---|---|
 | [`design/framework`](https://github.com/PICO4robot/pico-elevationmap/tree/design/framework) | Active | Framework design proposal ([docs/design.md](https://github.com/PICO4robot/pico-elevationmap/blob/design/framework/docs/design.md)): analysis of the leggedrobotics/ANYbotics elevation-mapping projects, target architecture (ROS-free core + CuPy/torch dual backends), repo layout, sensor plan, and roadmap. |
 | [`feat/phase0-scaffold`](https://github.com/PICO4robot/pico-elevationmap/tree/feat/phase0-scaffold) | Phase 0 done | Installable package skeleton: src-layout `pico_elevationmap` (core/fusion/plugins/backends/sensors stubs), `pico-elevationmap` CLI dispatcher, uv + ruff + pytest, CI. No GPU/ROS deps yet. |
+| [`feat/phase1-core-pipeline`](https://github.com/PICO4robot/pico-elevationmap/tree/feat/phase1-core-pipeline) | Phase 1 done | Core mapping pipeline on GPU: wraps `elevation_mapping_cupy_core` (git-pinned) — SE3 pose buffer (replaces tf), per-source YAML sensor noise configs, `ElevationMapper` facade, plugin chain, real `pico-elevationmap run` demo with synthetic scenes. Verified on RTX 4090: 2.5 ms/step, 34 tests green. |
 
 ## Sibling repositories
 
