@@ -70,6 +70,7 @@ class MapperConfig:
     sources: dict[str, SensorSourceConfig] = field(default_factory=dict)
     plugins: dict[str, dict[str, Any]] = field(default_factory=dict)
     sim: dict[str, Any] = field(default_factory=dict)
+    ros: dict[str, Any] = field(default_factory=dict)  # ros: 段透传给桥接包校验
 
     def __post_init__(self) -> None:
         if self.sensor_noise_factor is None:
@@ -89,14 +90,14 @@ class MapperConfig:
             data = {}
         if not isinstance(data, dict):
             raise ValueError(f"{path}: top level must be a mapping")
-        unknown_sections = set(data) - {"map", "sources", "plugins", "sim"}
+        unknown_sections = set(data) - {"map", "sources", "plugins", "sim", "ros"}
         if unknown_sections:
             raise ValueError(f"{path}: unknown top-level sections {sorted(unknown_sections)}")
 
         map_section = data.get("map") or {}
         if not isinstance(map_section, dict):
             raise ValueError(f"{path}: 'map' section must be a mapping")
-        allowed = {f.name for f in fields(cls)} - {"sources", "plugins", "sim"}
+        allowed = {f.name for f in fields(cls)} - {"sources", "plugins", "sim", "ros"}
         unknown_keys = set(map_section) - allowed
         if unknown_keys:
             raise ValueError(f"{path}: unknown 'map' keys {sorted(unknown_keys)}")
@@ -104,7 +105,7 @@ class MapperConfig:
         sources = parse_sources(data) if "sources" in data else {}
         plugins = validate_plugin_decl(data.get("plugins") or {})
 
-        cfg = cls(sources=sources, plugins=plugins, sim=data.get("sim") or {}, **map_section)
+        cfg = cls(sources=sources, plugins=plugins, sim=data.get("sim") or {}, ros=data.get("ros") or {}, **map_section)
         return cfg
 
     @property
@@ -208,16 +209,28 @@ class ElevationMapper:
         return self._buffer.interpolate(stamp)
 
     # ── 数据输入 ──────────────────────────────────────────────────────────
-    def input(self, points: np.ndarray, stamp: float, source: str = "default") -> int:
+    def input(
+        self,
+        points: np.ndarray,
+        stamp: float,
+        source: str = "default",
+        *,
+        position_noise: float | None = None,
+        orientation_noise: float | None = None,
+    ) -> int:
         """融合一帧传感器系点云（Nx3），返回通过量程裁剪后实际参与融合的点数。
 
         位姿按 stamp 从缓冲插值；点云须为传感器系坐标（传感器原点为基准）。
+        position_noise / orientation_noise 缺省时用源配置值；显式传入（如 ROS
+        桥用位姿协方差推导值）时覆盖，作为上游漂移补偿的触发门限。
         """
         pts = np.asarray(points, dtype=np.float32)
         if pts.ndim != 2 or pts.shape[1] != 3:
             raise ValueError(f"points must have shape (N, 3), got {pts.shape}")
         src = self.config.resolve_source(source)
         pose = self._buffer.interpolate(stamp)  # 先校验位姿可用，再看点云
+        pos_noise = src.position_noise if position_noise is None else float(position_noise)
+        ori_noise = src.orientation_noise if orientation_noise is None else float(orientation_noise)
         if len(pts) > 0:
             dist = np.linalg.norm(pts.astype(np.float64), axis=1)
             keep = (dist >= src.min_range) & (dist <= src.max_range)
@@ -227,7 +240,7 @@ class ElevationMapper:
         R = cp.asarray(pose[:3, :3], dtype=np.float32)
         t = cp.asarray(pose[:3, 3], dtype=np.float32)
         cloud = cp.asarray(pts)
-        self._map.input_pointcloud(cloud, ["x", "y", "z"], R, t, src.position_noise, src.orientation_noise)
+        self._map.input_pointcloud(cloud, ["x", "y", "z"], R, t, pos_noise, ori_noise)
         return int(cloud.shape[0])
 
     # ── 时间传播 / 平移 ──────────────────────────────────────────────────
