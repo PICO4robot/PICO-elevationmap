@@ -5,10 +5,9 @@ source of truth for command → entry module, lazy-imported via ``importlib`` so
 heavy deps (cupy / torch / ROS bridges) only load for the chosen command. Entry
 points stay directly runnable, e.g. ``python -m scripts.cli run ...``.
 
-Phase 0 scaffold: no entry modules exist yet, so every known command falls back
-to a stub printing its roadmap phase and exiting 0. The lazy-import dispatch is
-already in place — landing a real module (e.g. ``scripts/pipeline/run.py`` in
-Phase 1) automatically replaces the stub.
+Phase 1: ``run`` resolves to the real ``scripts/pipeline/run.py`` (synthetic-scene
+live mapping demo); the remaining commands (replay / bench / export) still hit the
+stub fallback below — the lazy-import dispatch is shared by both paths.
 """
 
 from __future__ import annotations
@@ -31,7 +30,7 @@ def _print_usage() -> None:
     for name, (_, desc, phase) in _COMMANDS.items():
         print(f"  {name:<12} {desc}  [{phase}]")
     print("\nAll args after <command> are forwarded verbatim, e.g.:")
-    print("  pico-elevationmap run configs/run.yaml")
+    print("  pico-elevationmap run --config scripts/tools/configs/run_sim.yaml")
 
 
 def main() -> None:
