@@ -1,0 +1,36 @@
+# Manually triggered only, matching PICO-rl / PICO-robot / PICO-dataset. The repo
+# is in early scaffold phases; trigger from the Actions tab (`Run workflow`) once
+# a change is worth gating.
+name: CI
+
+on:
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Phase 0 scaffold gate: install, lint, smoke-test. No GPU packages yet, so no
+  # sibling checkouts, PICO_READ_PAT, or osmesa needed.
+  scaffold:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Pytest
+        run: uv run pytest -q

@@ -1,0 +1,64 @@
+# src/pico_elevationmap/ — PICO 高程建图框架
+# ROS-free 核心 + cupy（GPU 实时）/ torch（批量，RL observation）双后端；
+# 包装 elevation_mapping_cupy_core。设计方案见 design/framework 分支 docs/design.md。
+
+[project]
+name = "pico-elevationmap"
+version = "0.1.0"
+description = "PICO elevation mapping: ROS-free core, cupy GPU / torch batch dual backends"
+requires-python = ">=3.10,<3.13"
+license = { text = "Proprietary" }
+dependencies = []
+
+[project.scripts]
+pico-elevationmap = "scripts.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src", "."]
+include = ["pico_elevationmap*", "scripts*"]
+
+[tool.uv]
+required-environments = [
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+# 国内镜像优先于 PyPI 搜索，但不取代默认索引 —— default = true 会把 PyPI 完全
+# 替换掉，lock 的可复现性因此绑死在单一镜像上，镜像未收录的包也无法解析。
+# nvidia / pytorch explicit index 待 Phase 3 引入 GPU 依赖后按需补回。
+[[tool.uv.index]]
+url = "https://mirrors.aliyun.com/pypi/simple"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP"]
+ignore = [
+    "E501",   # line too long — handled by formatter
+    "UP007",  # use X | Y instead of Optional[X] — keep explicit for clarity
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = ["pico_elevationmap", "scripts"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "ruff>=0.15.12",
+]
