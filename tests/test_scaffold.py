@@ -1,4 +1,4 @@
-"""Phase 0 scaffold smoke tests: packages importable, CLI dispatcher, version."""
+"""Scaffold smoke tests: importable packages, CLI dispatcher, version."""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ import pytest
 import scripts.cli as cli
 
 SUBCOMMANDS = ("run", "replay", "bench", "export")
+# Phase 1: run 已是真实 pipeline（scripts/pipeline/run.py），其余仍是 stub
+STUB_SUBCOMMANDS = ("replay", "bench", "export")
 PACKAGES = (
     "pico_elevationmap",
     "pico_elevationmap.core",
@@ -18,6 +20,7 @@ PACKAGES = (
     "pico_elevationmap.backends",
     "pico_elevationmap.sensors",
     "scripts",
+    "scripts.pipeline",
 )
 
 
@@ -36,7 +39,7 @@ def test_cli_lists_subcommands(monkeypatch: pytest.MonkeyPatch, capsys: pytest.C
         assert cmd in out
 
 
-@pytest.mark.parametrize("cmd", SUBCOMMANDS)
+@pytest.mark.parametrize("cmd", STUB_SUBCOMMANDS)
 def test_cli_stubs_exit_zero(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], cmd: str
 ) -> None:
@@ -49,6 +52,15 @@ def test_cli_stubs_exit_zero(
     assert "Phase" in out
 
 
+def test_cli_run_help_exit_zero(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    """run 子命令已实现：--help 在无 GPU 环境也必须可用（GPU 栈为懒加载）。"""
+    monkeypatch.setattr("sys.argv", ["pico-elevationmap", "run", "--help"])
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+    assert exc_info.value.code == 0
+    assert "--config" in capsys.readouterr().out
+
+
 def test_cli_unknown_command_exits_2(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     monkeypatch.setattr("sys.argv", ["pico-elevationmap", "bogus"])
     with pytest.raises(SystemExit) as exc_info:
@@ -58,7 +70,7 @@ def test_cli_unknown_command_exits_2(monkeypatch: pytest.MonkeyPatch, capsys: py
 
 
 def test_version() -> None:
-    assert importlib.metadata.version("pico-elevationmap") == "0.1.0"
+    assert importlib.metadata.version("pico-elevationmap") == "0.2.0"
 
 
 def test_synthetic_pointcloud_fixture(synthetic_pointcloud: list[tuple[float, float, float]]) -> None:

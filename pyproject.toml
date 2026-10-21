@@ -4,11 +4,16 @@
 
 [project]
 name = "pico-elevationmap"
-version = "0.1.0"
+version = "0.2.0"
 description = "PICO elevation mapping: ROS-free core, cupy GPU / torch batch dual backends"
 requires-python = ">=3.10,<3.13"
 license = { text = "Proprietary" }
-dependencies = []
+dependencies = [
+  "elevation-mapping-cupy-core",
+  "cupy-cuda12x",
+  "numpy",
+  "pyyaml",
+]
 
 [project.scripts]
 pico-elevationmap = "scripts.cli:main"
@@ -28,9 +33,15 @@ required-environments = [
 
 # 国内镜像优先于 PyPI 搜索，但不取代默认索引 —— default = true 会把 PyPI 完全
 # 替换掉，lock 的可复现性因此绑死在单一镜像上，镜像未收录的包也无法解析。
-# nvidia / pytorch explicit index 待 Phase 3 引入 GPU 依赖后按需补回。
+# cupy-cuda12x 及其 nvidia-* 依赖在 PyPI/镜像均有收录，无需 explicit index；
+# pytorch explicit index 待 Phase 3 引入 torch 后端后按需补回。
 [[tool.uv.index]]
 url = "https://mirrors.aliyun.com/pypi/simple"
+
+[tool.uv.sources]
+# 锁 git rev 照 PICO-rl 锁 mjlab 的写法；上游 API 变动跟随升级（dependency bumps
+# are manual PRs）。上游 pyproject 完整可直接 git 安装，无需 PyPI 回退。
+elevation-mapping-cupy-core = { git = "https://github.com/leggedrobotics/elevation_mapping_cupy_core.git", rev = "7a79a6655952aab2e0dd30d81420adbb2e64134a" }
 
 [tool.ruff]
 line-length = 120

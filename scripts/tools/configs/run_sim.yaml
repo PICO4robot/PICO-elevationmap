@@ -1,0 +1,50 @@
+# 合成场景 run demo 配置：平地 + 方台 + 台阶，圆周轨迹单深度相机源。
+# 用法：uv run pico-elevationmap run --config scripts/tools/configs/run_sim.yaml [--save out.npz]
+map:
+  resolution: 0.04
+  map_length: 8.0
+  mahalanobis_thresh: 2.5
+  min_valid_distance: 0.3
+  max_height_range: 1.2
+  max_ray_length: 3.0
+  # sensor_noise_factor 缺省：回退到主输入源的 upstream_noise_factor 映射
+
+sources:
+  sim_depth:
+    sensor_type: depth_camera   # std = c·d²（融合侧按量程上界近似，见 sensors/config.py）
+    noise_coefficient: 0.002
+    min_range: 0.4
+    max_range: 8.0
+
+plugins:
+  min_filter:
+    enable: true
+    layer_name: min_filter
+    fill_nan: false
+    is_height_layer: true
+    extra_params:
+      dilation_size: 2
+      iteration_n: 20
+  smooth_filter:
+    enable: true
+    layer_name: smooth
+    fill_nan: false
+    is_height_layer: true
+    extra_params:
+      input_layer_name: min_filter
+
+sim:
+  steps: 60
+  dt: 0.1
+  seed: 42
+  sensor_height: 1.0
+  spacing: 0.03
+  trajectory:
+    type: circle
+    radius: 1.5
+    angular_speed: 0.15
+  scene:
+    ground: 0.0
+    boxes:
+      - {x_min: 1.0, x_max: 2.0, y_min: -0.5, y_max: 0.5, height: 0.4}    # 方台
+      - {x_min: -2.5, x_max: -1.2, y_min: -2.0, y_max: 2.0, height: 0.15} # 台阶
