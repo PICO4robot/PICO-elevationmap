@@ -434,7 +434,7 @@ wheels = [
 
 [[package]]
 name = "pico-elevationmap"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "cupy-cuda12x" },
@@ -460,6 +460,7 @@ requires-dist = [
     { name = "pyyaml" },
     { name = "rosbags" },
 ]
+provides-extras = ["ros"]
 
 [package.metadata.requires-dev]
 dev = [

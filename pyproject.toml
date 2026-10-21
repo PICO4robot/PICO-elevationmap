@@ -4,7 +4,7 @@
 
 [project]
 name = "pico-elevationmap"
-version = "0.3.0"
+version = "0.4.0"
 description = "PICO elevation mapping: ROS-free core, cupy GPU / torch batch dual backends"
 requires-python = ">=3.10,<3.13"
 license = { text = "Proprietary" }
@@ -16,8 +16,15 @@ dependencies = [
   "rosbags",
 ]
 
+[project.optional-dependencies]
+# ROS2 桥接为可选能力：rclpy / sensor_msgs / grid_map_msgs 由系统 ROS2 安装
+# 提供（pip 无法安装），此 extra 仅作语义标记与纯 python 依赖挂载点；
+# 核心包（pico_elevationmap + scripts）零 ROS 依赖，uv sync 不带 extra 即可。
+ros = []
+
 [project.scripts]
 pico-elevationmap = "scripts.cli:main"
+pico-elevationmap-ros = "pico_elevationmap_ros.node:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -25,7 +32,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["pico_elevationmap*", "scripts*"]
+include = ["pico_elevationmap*", "pico_elevationmap_ros*", "scripts*"]
 
 [tool.uv]
 required-environments = [
@@ -68,6 +75,9 @@ docstring-code-format = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "requires_ros: 真实 ROS2 环境集成测试（无 ROS 时自动 skip，桥接逻辑由桩单测覆盖）",
+]
 
 [dependency-groups]
 dev = [
