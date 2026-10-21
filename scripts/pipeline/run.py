@@ -18,6 +18,7 @@ from typing import Any
 
 import numpy as np
 
+from pico_elevationmap.core import io
 from pico_elevationmap.sensors.config import SensorSourceConfig
 
 _PROGRESS_EVERY = 10
@@ -145,7 +146,8 @@ def main() -> None:
         description="Synthetic-scene live mapping demo (Phase 1).",
     )
     parser.add_argument("--config", required=True, type=Path, help="YAML: map / sources / plugins / sim")
-    parser.add_argument("--save", type=Path, default=None, help="optional npz dump of all layers")
+    parser.add_argument("--save", type=Path, default=None, help="optional npz dump of all map layers")
+    parser.add_argument("--save-frames", type=Path, default=None, help="optional npz dump of the simulated frames (replay input)")
     parser.add_argument("--steps", type=int, default=None, help="override sim.steps")
     args = parser.parse_args()
 
@@ -167,6 +169,7 @@ def main() -> None:
     )
 
     times: list[float] = []
+    frames: list[io.PointCloudFrame] = []
     for i in range(steps):
         stamp = i * sim.dt
         pose = sim.pose_at(stamp)
@@ -176,6 +179,7 @@ def main() -> None:
         sensor = (pose[:3, :3].T @ (world - pose[:3, 3]).T).T  # 世界系 → 传感器系
         sensor = sensor[sensor[:, 2] < 0.0]  # 只保留下方点（下视传感器）
         noisy = inject_noise(rng, sensor, source)
+        frames.append(io.PointCloudFrame(points=noisy, stamp=stamp, pose=pose.copy(), source=source.name))
 
         t0 = time.perf_counter()
         accepted = mapper.input(noisy, stamp, source=source.name)
@@ -203,10 +207,9 @@ def main() -> None:
 
     if args.save is not None:
         layers = mapper.get_map()
-        np.savez(
-            args.save,
-            **layers,
-            resolution=np.float32(cfg.resolution),
-            center=np.asarray(stats.center, dtype=np.float32),
-        )
+        io.save_map(args.save, layers, cfg.resolution, stats.center)
         print(f"[run] saved {len(layers)} layers -> {args.save}")
+    if args.save_frames is not None:
+        io.save_frames(args.save_frames, frames)
+        total_pts = sum(len(f.points) for f in frames)
+        print(f"[run] saved {len(frames)} frames ({total_pts} pts) -> {args.save_frames}")
