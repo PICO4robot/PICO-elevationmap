@@ -1,7 +1,8 @@
 # 真实硬件部署与验证方案
 
-> 版本：v0.1　日期：2026-10-28
+> 版本：v0.2　日期：2026-10-28
 > 目标：把 PICO-elevationmap（cupy GPU 核心 + 可选 ROS2 桥）部署到真实机器人并验证建图效果。
+> 开发环境（CUDA headers、GitHub 访问、uv/pytest）见 [development.md](development.md)。
 
 ## 1. 硬件配置
 
@@ -78,11 +79,22 @@
 
 `tests/` 中带 `requires_ros` 标记的集成测试需要在装了 ROS2 的机器上跑：
 
-- GPU：NVIDIA，驱动支持 CUDA 12.x+（核显不行，cupy_core 无 CPU fallback）；
+- GPU：NVIDIA，驱动支持 CUDA 12.x+（核显不行，cupy_core 无 CPU fallback）。
+  `nvidia-smi` 的 CUDA Version 是驱动支持的上限，13.x 驱动可运行 CUDA 12.x
+  运行时；但 CuPy 的 NVRTC 还需要 CUDA 12.x headers——无系统 toolkit 时安装
+  `cupy-cuda12x[ctk]` 或设置 `CUDA_PATH`，详见 [development.md](development.md#3-cuda-运行时与-headers)；
 - OS：Ubuntu 24.04 + ROS2 Jazzy（`rclpy`、`sensor_msgs`、`geometry_msgs`、
   `nav_msgs`、`std_srvs`、`grid_map_msgs`，即 `ros-jazzy-grid-map-msgs`）；
-- Python：3.12 + uv；venv 需能看到系统 ROS 包
-  （`--system-site-packages` 或 source ROS 后用系统 Python）。
+- Python：3.12 + uv；venv 需能看到系统 ROS 包：
+
+  ```bash
+  uv venv --system-site-packages --allow-existing
+  source /opt/ros/jazzy/setup.bash
+  uv sync --extra ros
+  ```
+
+- 运行集成测试：`uv run pytest -q -m requires_ros`。不要与桩单测混跑：
+  `tests/ros_stubs.py` 会替换 `sys.modules` 中的 `rclpy`，导致真实用例看到桩。
 
 ## 5. DGX Spark 平台评估（GB10 Grace-Blackwell）
 

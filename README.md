@@ -7,7 +7,8 @@ core wrapping [elevation_mapping_cupy_core](https://github.com/leggedrobotics/el
 with pluggable fusion, a YAML-driven postprocessing plugin chain (including our own
 geometric slope / traversability plugins), offline replay from npz sequences or rosbags,
 and an optional ROS2 bridge. Documentation index: [docs/README.md](docs/README.md)
-(framework design, hardware deployment plan, semantic extension proposal, concepts).
+(framework design, development environment, hardware deployment plan, semantic
+extension proposal, concepts).
 
 This repository is developed on topic branches; `main` only serves as the entry point
 summarizing what each branch contains.
@@ -16,11 +17,11 @@ summarizing what each branch contains.
 
 | Branch | Status | Contents |
 |---|---|---|
-| [`design/framework`](https://github.com/PICO4robot/pico-elevationmap/tree/design/framework) | Merged to main | Framework design proposal ([docs/design.md](docs/design.md)): analysis of the leggedrobotics/ANYbotics elevation-mapping projects, target architecture (ROS-free core + CuPy/torch dual backends), repo layout, sensor plan, and roadmap. |
-| [`feat/phase0-scaffold`](https://github.com/PICO4robot/pico-elevationmap/tree/feat/phase0-scaffold) | Merged to main | Installable package skeleton: src-layout `pico_elevationmap` (core/fusion/plugins/backends/sensors stubs), `pico-elevationmap` CLI dispatcher, uv + ruff + pytest, CI. No GPU/ROS deps yet. |
-| [`feat/phase1-core-pipeline`](https://github.com/PICO4robot/pico-elevationmap/tree/feat/phase1-core-pipeline) | Merged to main | Core mapping pipeline on GPU: wraps `elevation_mapping_cupy_core` (git-pinned) — SE3 pose buffer (replaces tf), per-source YAML sensor noise configs, `ElevationMapper` facade, plugin chain, real `pico-elevationmap run` demo with synthetic scenes. Verified on RTX 4090: 2.5 ms/step, 34 tests green. |
-| [`feat/phase2-plugins-replay`](https://github.com/PICO4robot/pico-elevationmap/tree/feat/phase2-plugins-replay) | Merged to main | Plugin chain (inpaint / smooth / geometric slope+traversability as own plugins), offline `replay` (npz frames, ROS1/ROS2 bags via pure-python rosbags), `export` to PLY/PGM/CSV. 52 tests green. |
-| [`feat/phase4-ros2-bridge`](https://github.com/PICO4robot/pico-elevationmap/tree/feat/phase4-ros2-bridge) | Merged to main | Optional ROS2 bridge package `pico_elevationmap_ros` (core stays zero-ROS): PointCloud2/Odometry→numpy conversion, GridMap packing, node with pub/sub + clear/save services. Mock-verified (no ROS2 on dev machine). Phase 3 (torch batch backend / PICO-rl integration) deferred. |
+| [`design/framework`](https://github.com/PICO4robot/PICO-elevationmap/tree/design/framework) | Merged to main | Framework design proposal ([docs/design.md](docs/design.md)): analysis of the leggedrobotics/ANYbotics elevation-mapping projects, target architecture (ROS-free core + CuPy/torch dual backends), repo layout, sensor plan, and roadmap. |
+| [`feat/phase0-scaffold`](https://github.com/PICO4robot/PICO-elevationmap/tree/feat/phase0-scaffold) | Merged to main | Installable package skeleton: src-layout `pico_elevationmap` (core/fusion/plugins/backends/sensors stubs), `pico-elevationmap` CLI dispatcher, uv + ruff + pytest, CI. No GPU/ROS deps yet. |
+| [`feat/phase1-core-pipeline`](https://github.com/PICO4robot/PICO-elevationmap/tree/feat/phase1-core-pipeline) | Merged to main | Core mapping pipeline on GPU: wraps `elevation_mapping_cupy_core` (git-pinned) — SE3 pose buffer (replaces tf), per-source YAML sensor noise configs, `ElevationMapper` facade, plugin chain, real `pico-elevationmap run` demo with synthetic scenes. Verified on RTX 4090: 2.5 ms/step, test suite green. |
+| [`feat/phase2-plugins-replay`](https://github.com/PICO4robot/PICO-elevationmap/tree/feat/phase2-plugins-replay) | Merged to main | Plugin chain (inpaint / smooth / geometric slope+traversability as own plugins), offline `replay` (npz frames, ROS1/ROS2 bags via pure-python rosbags), `export` to PLY/PGM/CSV. Test suite green. |
+| [`feat/phase4-ros2-bridge`](https://github.com/PICO4robot/PICO-elevationmap/tree/feat/phase4-ros2-bridge) | Merged to main | Optional ROS2 bridge package `pico_elevationmap_ros` (core stays zero-ROS): PointCloud2/Odometry→numpy conversion, GridMap packing, node with pub/sub + clear/save services. Mock-verified (no ROS2 on dev machine). Phase 3 (torch batch backend / PICO-rl integration) deferred. |
 
 ## Layout
 
@@ -34,20 +35,28 @@ src/pico_elevationmap/       # 核心包（零 ROS 依赖）
 src/pico_elevationmap_ros/   # 可选 ROS2 桥接（rclpy 依赖仅存在于该包 node.py）
 scripts/                     # cli.py 唯一 lazy-import dispatcher + pipeline/（run/replay/export）+ tools/configs/
 tests/                       # pytest，镜像 src；GPU 用例 requires_gpu 自动 skip，ROS 集成用例 requires_ros 自动 skip
+docs/                        # 设计、开发环境、硬件部署、语义扩展、概念
 ```
 
 ## Install
 
-Core (GPU required at runtime for mapping; install itself is CPU-friendly):
+Prerequisites and troubleshooting (CUDA headers, GitHub access, ROS2 venv) are in
+[docs/development.md](docs/development.md). Mapping needs an NVIDIA GPU at runtime;
+installation itself is CPU-friendly.
 
 ```bash
-uv sync            # 核心：pico_elevationmap + pico-elevationmap CLI
-uv sync --extra ros  # 语义标记：rclpy / grid_map_msgs 由系统 ROS2 提供（pip 无法安装）
+uv sync              # core + dev tools (pytest / ruff)
+uv sync --extra ros  # ROS semantic marker; system ROS2 provides rclpy / grid_map_msgs
 ```
+
+On a driver-only machine, make sure NVRTC can find CUDA 12.x headers before the first
+run (`cupy-cuda12x[ctk]` or `CUDA_PATH`); see [development.md §3](docs/development.md#3-cuda-运行时与-headers).
 
 ## Quickstart
 
 ```bash
+mkdir -p maps   # run/replay 的 --save 不会自动创建父目录
+
 # 合成场景实时建图 demo（平地 + 方台 + 台阶，圆周轨迹）
 uv run pico-elevationmap run --config scripts/tools/configs/run_sim.yaml \
     --save maps/map.npz --save-frames maps/frames.npz
@@ -65,6 +74,16 @@ uv run pico-elevationmap export --input maps/replay_map.npz --layers elevation -
 （桥接参数）五段，键名拼写与取值越界都会报明确错误；示例见
 `scripts/tools/configs/run_sim.yaml`。
 
+## Development
+
+```bash
+uv run pytest -q
+uv run ruff check .
+```
+
+环境准备、CUDA headers、GitHub 访问与常见问题见
+[docs/development.md](docs/development.md)。
+
 ## ROS2 bridge (optional)
 
 `pico_elevationmap_ros` 把 `ElevationMapper` 接入 ROS2：订阅 N 路 PointCloud2 +
@@ -80,12 +99,14 @@ pico-elevationmap-ros --config /abs/path/config.yaml
 
 核心包不 import 任何 ROS 组件；桥接逻辑（消息转换/打包/接线）由 sys.modules
 桩单测覆盖，真实 ROS2 集成用例以 `requires_ros` 标记、无 ROS 时自动 skip。
+系统 ROS2 包、`grid_map_msgs` 与 `--system-site-packages` venv 的配置见
+[development.md §7](docs/development.md#7-可选ros2-桥接开发)。
 
 ## Sibling repositories
 
-- [PICO-robot](https://github.com/PICO4robot/pico-robot) — robot model assets (URDF/MJCF)
-- [PICO-rl](https://github.com/PICO4robot/pico-rl) — reinforcement learning framework
-- [PICO-dataset](https://github.com/PICO4robot/pico-dataset) — dataset registry
+- [PICO-robot](https://github.com/PICO4robot/PICO-robot) — robot model assets (URDF/MJCF)
+- [PICO-rl](https://github.com/PICO4robot/PICO-rl) — reinforcement learning framework
+- [PICO-dataset](https://github.com/PICO4robot/PICO-dataset) — dataset registry
 
 ## License
 

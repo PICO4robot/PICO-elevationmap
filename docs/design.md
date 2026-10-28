@@ -1,6 +1,6 @@
 # PICO-elevationmap 设计方案
 
-> 版本：v0.1（草案）　日期：2026-10-20　分支：`design/framework`
+> 版本：v0.2（草案）　日期：2026-10-28　分支：`main`
 
 本文档给出 PICO-elevationmap 的总体设计：上游开源项目分析、需要遵循的 PICO 家族约定、
 目标架构、模块划分、传感器方案、工程规范与实施路线图。
@@ -143,11 +143,16 @@ vendor 任何代码必须保留原始 license header，README 致谢。
 
 ```
 PICO-elevationmap/
-├── pyproject.toml              # setuptools + uv，version = 0.1.0，Proprietary
+├── pyproject.toml              # setuptools + uv，version = 0.4.0，Proprietary
 ├── uv.lock
 ├── README.md
 ├── docs/
-│   └── design.md               # 本文档
+│   ├── README.md               # 文档索引
+│   ├── design.md               # 本文档
+│   ├── development.md          # 开发环境搭建与验证
+│   ├── deploy-hardware.md      # 真实硬件部署
+│   ├── semantic-extension.md   # 语义扩展（Phase 5 提案）
+│   └── concepts.md             # BEV / elevation map 概念
 ├── src/
 │   ├── pico_elevationmap/      # 框架层（核心，零 ROS）
 │   │   ├── core/               # 地图数据结构封装、SE3 位姿缓冲、时间戳对齐
@@ -156,9 +161,9 @@ PICO-elevationmap/
 │   │   ├── backends/           # 后端抽象：cupy（GPU 实时）| torch（批量，RL 用）
 │   │   └── sensors/            # 每输入源一个噪声模型配置（YAML）
 │   ├── pico_elevationmap_ros/  # 可选 ROS2 桥接（独立 extras）
-│   └── pico_elevationmap_sim/  # mjlab / MuJoCo 集成：仿真深度 → 批量建图
+│   └── pico_elevationmap_sim/  # mjlab / MuJoCo 集成（Phase 3，未实现）
 ├── scripts/                    # 包内 scripts：cli.py 唯一 lazy-import dispatcher
-│   ├── pipeline/               # run / replay / bench / export
+│   ├── pipeline/               # run / replay / export（bench 待 Phase 3）
 │   └── tools/                  # 一次性工具 + configs/*.yaml
 ├── tests/                      # pytest，镜像 src 布局，合成数据 fixture
 └── .github/workflows/ci.yml    # workflow_dispatch + PICO_READ_PAT + osmesa
@@ -199,18 +204,22 @@ CLI `pico-elevationmap`（dispatcher 模式）。
 
 ## 8. 工程规范
 
-- **依赖**：uv 管理；`cupy-cuda12x` + `numpy<2` 约束写入 pyproject；
-  nvidia / pytorch 用 explicit index（照 PICO-rl 写法）；
-  `elevation-mapping-cupy-core` 锁 git rev；
+- **依赖**：uv 管理；`cupy-cuda12x` + numpy 2.x（lock 当前 2.5.4）；
+  `elevation-mapping-cupy-core` 锁 git rev；CuPy 的 NVRTC 需要 CUDA 12.x
+  headers（`cupy-cuda12x[ctk]` 或 `CUDA_PATH`，见
+  [development.md](development.md#3-cuda-运行时与-headers)）；
+  torch 待 Phase 3 引入后再用 explicit index（照 PICO-rl 写法）；
 - **ruff**：`[tool.ruff]` 段照抄 PICO-rl（120 列、双引号、`E,W,F,I,UP`）；
 - **测试**：pytest，tests/ 镜像 src；CI 无 GPU，用合成数据 + mock 后端，
   GPU 用例按 conftest 自动 skip 模式处理；
-- **版本**：SemVer 从 0.1.0 起步，写 pyproject `version`；
+- **版本**：SemVer 从 0.1.0 起步，写 pyproject `version`（当前 0.4.0）；
   conventional commits，scope 用 `(map)`；
 - **资产联动**：仿真 / 测试消费 PICO-robot MJCF 模型时，照抄 ASSETS.lock +
   check_asset_pins.py 机制；
 - **CI**：单文件 workflow_dispatch 触发，ubuntu-24.04，`MUJOCO_GL=osmesa`，
   私有 sibling 用 `PICO_READ_PAT` 检出；
+- **开发环境**：前置条件、CUDA headers、GitHub 访问与排障见
+  [development.md](development.md)；
 - **License**：Proprietary；README 致谢上游 MIT/BSD 项目。
 
 ## 9. 实施路线图
@@ -223,12 +232,19 @@ CLI `pico-elevationmap`（dispatcher 模式）。
 | Phase 3 — torch 批量后端 + RL 集成 | mjlab 仿真深度渲染 → 批量地图 → 注册为 pico_tasks observation | 与 PICO-rl 联调 |
 | Phase 4 — 可选 ROS2 桥 | `pico_elevationmap_ros`，grid_map_msgs 转换只存在于桥内 | 实机部署 |
 
+状态：Phase 0 / 1 / 2 / 4 已合入 `main`；Phase 3（torch 批量后端）暂缓，`bench`
+子命令仍为 stub。
+
 ## 10. 风险与开放问题
 
 - **GPU 依赖**：cupy_core 无 CPU fallback；CI / 开发机无 GPU 时靠合成数据 + mock 后端；
 - **上游 API 稳定性**：cupy_core 是 2026 年新抽出的库，锁 git rev + 定期人工升级
   （符合家族"dependency bumps are manual PRs"惯例）；
-- **CUDA 环境**：实机（机载计算单元）的 CUDA 12.x + cupy 部署需要先行验证；
+- **CUDA 环境**：CuPy 后端依赖 CUDA 12.x 运行时与 headers；驱动 13.x 向后兼容
+  CUDA 12.x（已在 RTX 4060 Laptop + 驱动 595.99 / CUDA 13.2 验证）。无系统
+  toolkit 的机器需安装 `cupy-cuda12x[ctk]` 或设置 `CUDA_PATH`，见
+  [development.md](development.md#3-cuda-运行时与-headers)；aarch64 / DGX Spark
+  （sm_121 + CUDA 13）迁移仍需单独验证；
 - **torch 后端的取舍**：批量后端是重写融合 kernel（工作量大）还是 N 个 cupy 实例循环
   （简单但难上 batch 梯度），需在 Phase 3 前做 spike 验证；
 - **多地图 / 回环**：上游均不支持，本期不做，列为远期开放问题。
