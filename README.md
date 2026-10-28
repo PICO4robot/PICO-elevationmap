@@ -6,7 +6,8 @@ ROS-free 2.5D elevation mapping framework for PICO quadrupeds / humanoids: a CuP
 core wrapping [elevation_mapping_cupy_core](https://github.com/leggedrobotics/elevation_mapping_cupy_core),
 with pluggable fusion, a YAML-driven postprocessing plugin chain (including our own
 geometric slope / traversability plugins), offline replay from npz sequences or rosbags,
-and an optional ROS2 bridge. Full framework design: [docs/design.md](docs/design.md).
+and an optional ROS2 bridge. Documentation index: [docs/README.md](docs/README.md)
+(framework design, hardware deployment plan, semantic extension proposal, concepts).
 
 This repository is developed on topic branches; `main` only serves as the entry point
 summarizing what each branch contains.
