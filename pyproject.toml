@@ -21,6 +21,11 @@ dependencies = [
 # 提供（pip 无法安装），此 extra 仅作语义标记与纯 python 依赖挂载点；
 # 核心包（pico_elevationmap + scripts）零 ROS 依赖，uv sync 不带 extra 即可。
 ros = []
+# 无系统 CUDA toolkit 的机器：NVRTC 需要 CUDA 12.x headers + nvrtc 库。
+# 只装 cudart/nvrtc 两个组件，比完整的 cupy-cuda12x[ctk] 轻很多。
+cuda = ["cuda-toolkit[cudart,nvrtc]==12.*"]
+# RealSense D435i 等深度相机直连（scripts/tools/realsense_live.py）。
+realsense = ["pyrealsense2>=2.55,<3"]
 
 [project.scripts]
 pico-elevationmap = "scripts.cli:main"

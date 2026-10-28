@@ -46,11 +46,13 @@ installation itself is CPU-friendly.
 
 ```bash
 uv sync              # core + dev tools (pytest / ruff)
+uv sync --extra cuda --extra realsense  # driver-only CUDA headers + D435i direct SDK
 uv sync --extra ros  # ROS semantic marker; system ROS2 provides rclpy / grid_map_msgs
 ```
 
 On a driver-only machine, make sure NVRTC can find CUDA 12.x headers before the first
-run (`cupy-cuda12x[ctk]` or `CUDA_PATH`); see [development.md §3](docs/development.md#3-cuda-运行时与-headers).
+run (`uv sync --extra cuda`, `cupy-cuda12x[ctk]`, or `CUDA_PATH`); see
+[development.md §3](docs/development.md#3-cuda-运行时与-headers).
 
 ## Quickstart
 
@@ -83,6 +85,39 @@ uv run ruff check .
 
 环境准备、CUDA headers、GitHub 访问与常见问题见
 [docs/development.md](docs/development.md)。
+
+## RealSense live (optional)
+
+D435i 直连建图，不依赖 ROS：
+
+```bash
+uv sync --extra cuda --extra realsense
+
+# 实时 2D + 3D：左高程 / 中 traversability / 右色标；独立 3D 体素窗口
+uv run python -m scripts.tools.realsense_live \
+    --config scripts/tools/configs/realsense_live.yaml \
+    --view --voxel-view --frames 0 \
+    --z-min -0.1 --z-max 1.0 --color-bands 12 \
+    --voxel-size 0.05 --voxel-save maps/realsense_voxel.png
+
+# 或采 30 帧后保存
+uv run python -m scripts.tools.realsense_live \
+    --config scripts/tools/configs/realsense_live.yaml \
+    --frames 30 --save maps/realsense_map.npz \
+    --save-frames maps/realsense_frames.npz \
+    --export-ply maps/realsense.ply --export-pgm maps/realsense.pgm
+```
+
+实时 2D 颜色用**固定绝对高度范围** `--z-min/--z-max`（默认 -0.1/1.0 m），
+12 个高度带 + 坡度明暗 + 层间线 + 右侧米制色标，同色即同高；`--color-bands 1`
+可切回连续色带。3D 体素窗口按 `--voxel-size`（默认 5 cm）累积占用格。先点击
+3D 窗口获得焦点：鼠标左键拖拽旋转、滚轮缩放；也可用 `a/d` 偏航、`w/s` 俯仰、
+`+/-` 缩放，`q` 退出。动态障碍物离开后，默认每 3 帧沿当前深度射线清空自由
+空间，并用 `--voxel-ttl`（默认 2 s）清理未再观测的体素；`--no-voxel-carve`
+可关闭射线清空。当前脚本假设静态相机；接上里程计后 3D 视图会跟随地图中心移动。
+
+脚本会按深度图内参反投影、自动估计近场主平面并构造 Z-up 地图系。相机抬高并
+下俯 20–30°、让地面进入视野时效果最好；桌面掠射视角的覆盖率会偏低。
 
 ## ROS2 bridge (optional)
 

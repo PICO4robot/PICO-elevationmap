@@ -45,11 +45,17 @@ RuntimeError: Failed to find CUDA headers. Please install CUDA toolkit headers
 
 任选一种方式补齐 **CUDA 12.x headers**：
 
-**A. 安装 CuPy 的 CUDA 12 toolkit extra（推荐，版本自洽；下载量较大）**
+**A. 安装项目自带的轻量 CUDA extra（推荐）**
 
 ```bash
-uv pip install 'cupy-cuda12x[ctk]'
+uv sync --extra cuda
+# 等价于只装 headers + nvrtc（约 100 MB，比完整 ctk 轻很多）：
+# uv pip install 'cuda-toolkit[cudart,nvrtc]==12.*'
 ```
+
+这也适用于已经 `uv sync` 过的环境；它会补上 `cuda-toolkit[cudart,nvrtc]`。
+若想一次装全 CuPy 的 toolkit 组件，也可以 `uv pip install 'cupy-cuda12x[ctk]'`，
+但会额外拉取 cublas / cufft / cusolver 等大包。
 
 **B. 复用已有的 CUDA 12.x toolkit，设置 `CUDA_PATH`**
 
@@ -106,10 +112,57 @@ uv run pico-elevationmap export --input maps/replay_map.npz \
 npz、PLY 与 PGM。`maps/` 已在 `.gitignore` 中。RTX 4060 Laptop 实测约
 **5 ms/step**（0.04 m 分辨率、约 4.6 万点/帧，仅供参考）。
 
+### 5.1 RealSense D435i 直连（可选）
+
+不需要 ROS，用 `pyrealsense2` 直接取深度流并建图：
+
+```bash
+uv sync --extra cuda --extra realsense
+
+# 实时 2D + 3D 体素；q / Esc 退出
+uv run python -m scripts.tools.realsense_live \
+    --config scripts/tools/configs/realsense_live.yaml \
+    --view --voxel-view --frames 0 \
+    --z-min -0.1 --z-max 1.0 --color-bands 12 --voxel-size 0.05
+
+# 或采 30 帧后保存
+uv run python -m scripts.tools.realsense_live \
+    --config scripts/tools/configs/realsense_live.yaml \
+    --frames 30 --save maps/realsense_map.npz \
+    --save-frames maps/realsense_frames.npz \
+    --export-ply maps/realsense.ply --export-pgm maps/realsense.pgm
+```
+
+脚本流程：640×480@30 深度图 → 按内参反投影为光学系点云 → RANSAC 估计近场
+主平面（地面/桌面）并构造 Z-up 地图系 → 逐帧送入 `ElevationMapper` → 窗口
+刷新 / 导出 npz、PLY、PGM。`--save-frames` 的帧序列可直接用同一配置 `replay`。
+
+实时颜色约定：
+
+- `--z-min/--z-max` 是**固定绝对高度范围**（默认 -0.1 / 1.0 m），同色即同高；
+- `--color-bands 12` 做 12 个离散高度带，带间画线，并叠加坡度明暗和右侧米制色标；
+- 高度超过 `z-max` 会被夹到最高色；场景更高时调大 `--z-max`；
+- `--color-bands 1` 切回连续色带。
+
+3D 体素窗口：
+
+- `--voxel-view` 打开独立的透视窗口，`--voxel-size` 控制体素边长（默认 5 cm）；
+- 先点击 3D 窗口获得焦点：鼠标左键拖拽旋转、滚轮缩放；也可用 `a/d` 偏航、
+  `w/s` 俯仰、`+/-` 缩放、`q` 退出；
+- 动态障碍物：默认每 3 帧沿当前深度射线清空自由空间；`--voxel-ttl`（默认 2 s）
+  清理未再观测的体素，`--no-voxel-carve` 关闭射线清空；`--voxel-carve-every`、
+  `--voxel-max-rays`、`--voxel-carve-steps` 可调清理频率/开销；
+- 视图 target 跟随 `mapper.center`；接上里程计/位姿后，地图和视角会随运动前移；
+- `--voxel-save maps/realsense_voxel.png` 可在退出时保存最后一帧 3D 视图。
+
+本机 D435i（fw 5.17.0.10）实测：`--stride 2` 约 3.7–7.2 万点/帧（取决于有效
+深度比例），稳定后约 8–11 ms/step。桌面视角下桌面接近掠射，地图覆盖率会偏低；
+把相机抬高并下俯 20–30°、让地面进入视野，覆盖率会明显改善。
+
 ## 6. 测试与 lint
 
 ```bash
-uv run pytest -q          # 本机基线：60 passed, 1 skipped（无 ROS）
+uv run pytest -q          # 本机基线：72 passed, 1 skipped（无 ROS）
 uv run ruff check .
 ```
 
@@ -167,6 +220,7 @@ uv run pytest -q -m requires_ros
 |---|---|
 | OS / Python / uv | Ubuntu 24.04.5 / 3.12.3 / 0.11.16 |
 | GPU / 驱动 | RTX 4060 Laptop 8 GB / 595.99（CUDA 13.2） |
-| CuPy | 14.2.0（cupy-cuda12x），runtime 12.9，NVRTC 用 CUDA 12.8 headers |
-| `pytest -q` | 60 passed, 1 skipped（无 ROS） |
+| CuPy | 14.2.0（cupy-cuda12x），runtime 12.9，NVRTC 用 CUDA 12.9 headers（`cuda-toolkit[cudart,nvrtc]`） |
+| `pytest -q` | 72 passed, 1 skipped（无 ROS） |
 | `run` | 60 步，约 5.02 ms/step，覆盖率 78.7% |
+| RealSense | D435i fw 5.17.0.10，640×480@30，stride 2 约 3.7–7.2 万点/帧，约 8–11 ms/step |
