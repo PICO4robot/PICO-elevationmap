@@ -119,4 +119,5 @@
 - 噪声模型：激光误差随距离线性增长，深度相机随距离平方增长；
   配置为每源 YAML（`laser | depth_camera | perfect`）；
 - 待补：实机深度相机输出的是深度图，需"深度图 + 内外参 → 点云"前置投影
-  （与语义扩展共用基础设施，见 semantic-extension.md）。
+  （与语义扩展共用基础设施，见 semantic-extension.md）；投影与双方案配置见
+  [sensor-profiles.md](sensor-profiles.md) §4.3。

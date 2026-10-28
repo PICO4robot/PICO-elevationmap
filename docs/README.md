@@ -3,8 +3,9 @@
 | 文档 | 内容 | 状态 |
 |---|---|---|
 | [design.md](design.md) | 总体设计方案：上游开源项目分析（leggedrobotics/ANYbotics）、PICO 家族约定、目标架构（ROS-free 核心 + CuPy/torch 双后端 + 可选 ROS2 桥）、仓库结构、传感器方案、工程规范、Phase 0–4 路线图、风险 | v0.2，Phase 0/1/2/4 已实施；Phase 3 暂缓 |
-| [development.md](development.md) | 开发环境搭建与验证：前置条件、uv 安装、CUDA headers、GitHub 访问、Quickstart、pytest/ruff、ROS2 可选环境、常见问题 | v0.1，已在 Ubuntu 24.04 + RTX 4060 Laptop 实测 |
+| [development.md](development.md) | 开发环境搭建与验证：前置条件、uv 安装、CUDA headers、GitHub 访问、Quickstart、RealSense D435i 直连、pytest/ruff、ROS2 可选环境、常见问题 | v0.1，已在 Ubuntu 24.04 + RTX 4060 Laptop + D435i 实测 |
 | [deploy-hardware.md](deploy-hardware.md) | 真实硬件部署与验证：硬件配置（最小/完整两档）、连接拓扑、工程要点（时间同步/标定/带宽/供电/自机过滤）、四阶段验证节奏、`requires_ros` 测试环境要求、DGX Spark 平台评估 | v0.2，未实施 |
+| [sensor-profiles.md](sensor-profiles.md) | 双传感器方案：仅深度相机 vs 深度相机 + LiDAR 的需求、现状评估、main 兼容决策、配置 profile、深度图投影、多源限制、实施计划与风险 | v0.2，M1/M2 原型已跑通（D435i 直连），ROS 适配待实施 |
 | [semantic-extension.md](semantic-extension.md) | 语义扩展（Phase 5 提案）：MEM 原理、三条语义注入路径、现状与改动清单、价值场景、排期建议 | v0.1 提案，待真机验证后立项 |
 | [concepts.md](concepts.md) | 概念辨析：BEV 与 elevation map 的关系与合流趋势 | v0.1 |
 

@@ -202,6 +202,9 @@ CLI `pico-elevationmap`（dispatcher 模式）。
 2. **实机最小方案**：头部单深度相机 + 腿部里程计（覆盖脚下 0.3–6 m，支撑楼梯/台阶）；
 3. **实机完整方案**：深度相机 + 顶部 360° LiDAR 双输入源 + LIO 位姿。
 
+两种实机形态的兼容策略（`main` 单实现 + 配置 profile + 短期 feature branch）见
+[sensor-profiles.md](sensor-profiles.md)。
+
 ## 8. 工程规范
 
 - **依赖**：uv 管理；`cupy-cuda12x` + numpy 2.x（lock 当前 2.5.4）；
