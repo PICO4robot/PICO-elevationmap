@@ -32,6 +32,15 @@ jobs:
       - name: Install dependencies from lockfile
         run: uv sync --frozen
 
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Shell script syntax
+        run: bash -n scripts/setup_env.sh
+
       - name: Pytest
         run: env -u PYTHONPATH uv run pytest -q
 

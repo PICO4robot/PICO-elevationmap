@@ -42,9 +42,7 @@ class RosConfig:
     save_path: str = "elevation_map_save.npz"
 
     @classmethod
-    def from_dict(
-        cls, data: dict[str, Any] | None, *, sources: dict[str, SensorSourceConfig]
-    ) -> RosConfig:
+    def from_dict(cls, data: dict[str, Any] | None, *, sources: dict[str, SensorSourceConfig]) -> RosConfig:
         if data is None:
             data = {}
         if not isinstance(data, dict):

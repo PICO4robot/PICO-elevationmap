@@ -45,9 +45,10 @@ _NORMAL_LAYER_NAMES = ("normal_x", "normal_y", "normal_z")
 
 @dataclass
 class MapperConfig:
-    """建图主配置：YAML 顶层分 map / sources / plugins / sim 四段。
+    """建图主配置：YAML 顶层分 map / sources / plugins / sim / ros / cameras 六段。
 
-    sim 段只透传存储（由调用方解释，见 scripts/pipeline/run.py），其余三段在此解析。
+    sim 段只透传存储（由调用方解释，见 pico_elevationmap/pipeline/run.py）；ros 与 cameras
+    段由桥接/传感器适配层解释，其余段在此解析。
     sensor_noise_factor 为 None 时回退到首个输入源的 upstream_noise_factor，
     再缺省 0.05（上游默认值）。
     """
@@ -71,6 +72,7 @@ class MapperConfig:
     plugins: dict[str, dict[str, Any]] = field(default_factory=dict)
     sim: dict[str, Any] = field(default_factory=dict)
     ros: dict[str, Any] = field(default_factory=dict)  # ros: 段透传给桥接包校验
+    cameras: dict[str, Any] = field(default_factory=dict)  # 多相机 rig 配置，透传给传感器适配层
 
     def __post_init__(self) -> None:
         if self.sensor_noise_factor is None:
@@ -90,14 +92,14 @@ class MapperConfig:
             data = {}
         if not isinstance(data, dict):
             raise ValueError(f"{path}: top level must be a mapping")
-        unknown_sections = set(data) - {"map", "sources", "plugins", "sim", "ros"}
+        unknown_sections = set(data) - {"map", "sources", "plugins", "sim", "ros", "cameras"}
         if unknown_sections:
             raise ValueError(f"{path}: unknown top-level sections {sorted(unknown_sections)}")
 
         map_section = data.get("map") or {}
         if not isinstance(map_section, dict):
             raise ValueError(f"{path}: 'map' section must be a mapping")
-        allowed = {f.name for f in fields(cls)} - {"sources", "plugins", "sim", "ros"}
+        allowed = {f.name for f in fields(cls)} - {"sources", "plugins", "sim", "ros", "cameras"}
         unknown_keys = set(map_section) - allowed
         if unknown_keys:
             raise ValueError(f"{path}: unknown 'map' keys {sorted(unknown_keys)}")
@@ -105,7 +107,14 @@ class MapperConfig:
         sources = parse_sources(data) if "sources" in data else {}
         plugins = validate_plugin_decl(data.get("plugins") or {})
 
-        cfg = cls(sources=sources, plugins=plugins, sim=data.get("sim") or {}, ros=data.get("ros") or {}, **map_section)
+        cfg = cls(
+            sources=sources,
+            plugins=plugins,
+            sim=data.get("sim") or {},
+            ros=data.get("ros") or {},
+            cameras=data.get("cameras") or {},
+            **map_section,
+        )
         return cfg
 
     @property

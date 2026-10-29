@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from pico_elevationmap.core import io
-from scripts.pipeline import export as export_mod
+from pico_elevationmap.pipeline import export as export_mod
 
 
 def _map_npz(tmp_path) -> object:
@@ -51,9 +51,7 @@ def test_export_pgm(tmp_path, monkeypatch, capsys) -> None:
 
 def test_export_csv_multi_layer(tmp_path, monkeypatch, capsys) -> None:
     out_path = tmp_path / "out.csv"
-    monkeypatch.setattr(
-        "sys.argv", _argv(tmp_path, "--output", str(out_path), "--layers", "elevation,variance")
-    )
+    monkeypatch.setattr("sys.argv", _argv(tmp_path, "--output", str(out_path), "--layers", "elevation,variance"))
     export_mod.main()
     out = capsys.readouterr().out
     assert "out_elevation.csv" in out and "out_variance.csv" in out
@@ -69,8 +67,6 @@ def test_export_unknown_layer_raises(tmp_path, monkeypatch) -> None:
 def test_export_missing_meta_raises(tmp_path, monkeypatch) -> None:
     path = tmp_path / "bare.npz"
     np.savez(path, elevation=np.zeros((3, 3), dtype=np.float32))
-    monkeypatch.setattr(
-        "sys.argv", ["pico-elevationmap export", "--input", str(path), "--format", "csv"]
-    )
+    monkeypatch.setattr("sys.argv", ["pico-elevationmap export", "--input", str(path), "--format", "csv"])
     with pytest.raises(ValueError, match="resolution"):
         export_mod.main()

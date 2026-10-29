@@ -86,7 +86,10 @@ def install() -> list[str]:
     sys.modules["rclpy"].node = sys.modules["rclpy.node"]
     for pkg, classes in (
         ("sensor_msgs", {"msg": {"PointCloud2": Flex, "PointField": Flex}}),
-        ("geometry_msgs", {"msg": {"PoseWithCovarianceStamped": Flex, "Pose": Flex, "Point": Flex, "Quaternion": Flex}}),
+        (
+            "geometry_msgs",
+            {"msg": {"PoseWithCovarianceStamped": Flex, "Pose": Flex, "Point": Flex, "Quaternion": Flex}},
+        ),
         ("nav_msgs", {"msg": {"Odometry": Flex}}),
         ("std_srvs", {"srv": {"Trigger": Trigger}}),
     ):

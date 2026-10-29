@@ -1,7 +1,7 @@
 # ROS2 桥接示例：D435i 深度相机 + RoboSense Airy LiDAR 双源。
 # 用法（需先 source ROS2，并使用带系统 ROS 可见性的 venv）：
 #   UV_PROJECT_ENVIRONMENT=.venv-ros uv run pico-elevationmap-ros \
-#       --config scripts/tools/configs/ros_camera_lidar.yaml
+#       --config src/pico_elevationmap/configs/ros_camera_lidar.yaml
 # 说明：ros.point_topics 的键必须与 sources 段中的源名一致；pose_type 可选
 # odometry | pose_cov，pose_topic 必须是绝对 topic 名。
 map:

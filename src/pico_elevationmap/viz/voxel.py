@@ -144,15 +144,25 @@ def render_voxels(
     grid = 3.0
     for offset in np.arange(-grid, grid + 1e-6, 1.0):
         for p0, p1 in (
-            (np.array([target[0] + offset, target[1] - grid, 0.0]), np.array([target[0] + offset, target[1] + grid, 0.0])),
-            (np.array([target[0] - grid, target[1] + offset, 0.0]), np.array([target[0] + grid, target[1] + offset, 0.0])),
+            (
+                np.array([target[0] + offset, target[1] - grid, 0.0]),
+                np.array([target[0] + offset, target[1] + grid, 0.0]),
+            ),
+            (
+                np.array([target[0] - grid, target[1] + offset, 0.0]),
+                np.array([target[0] + grid, target[1] + offset, 0.0]),
+            ),
         ):
             u, v, depth = project(np.stack([p0, p1]))
             if (depth > 0.2).all():
                 cv2.line(img, (int(u[0]), int(v[0])), (int(u[1]), int(v[1])), (55, 55, 55), 1, cv2.LINE_AA)
 
     # 坐标轴：x 红、y 绿、z 蓝
-    for axis, color in ((np.array([1.0, 0.0, 0.0]), (60, 60, 220)), (np.array([0.0, 1.0, 0.0]), (60, 200, 60)), (np.array([0.0, 0.0, 1.0]), (220, 120, 60))):
+    for axis, color in (
+        (np.array([1.0, 0.0, 0.0]), (60, 60, 220)),
+        (np.array([0.0, 1.0, 0.0]), (60, 200, 60)),
+        (np.array([0.0, 0.0, 1.0]), (220, 120, 60)),
+    ):
         u, v, depth = project(np.stack([target, target + 0.6 * axis]))
         if (depth > 0.2).all():
             cv2.line(img, (int(u[0]), int(v[0])), (int(u[1]), int(v[1])), color, 2, cv2.LINE_AA)
@@ -171,9 +181,7 @@ def render_voxels(
         span = max(float(z_max - z_min), 1e-6)
         band = np.clip(((centers[:, 2] - z_min) / span * bands).astype(np.int32), 0, bands - 1)
         alpha = float(np.clip(alpha, 0.0, 1.0))
-        half_px = np.clip(
-            np.round(0.5 * voxel_size * fx / np.maximum(depth, 1e-6)), 1, 12
-        ).astype(np.int32)
+        half_px = np.clip(np.round(0.5 * voxel_size * fx / np.maximum(depth, 1e-6)), 1, 12).astype(np.int32)
         for idx in np.argsort(-depth):
             if not valid[idx]:
                 continue

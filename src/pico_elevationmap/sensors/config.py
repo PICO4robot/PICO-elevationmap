@@ -57,8 +57,7 @@ class SensorSourceConfig:
     def __post_init__(self) -> None:
         if self.sensor_type not in self.SENSOR_TYPES:
             raise ValueError(
-                f"source '{self.name}': unknown sensor_type '{self.sensor_type}', "
-                f"expected one of {self.SENSOR_TYPES}"
+                f"source '{self.name}': unknown sensor_type '{self.sensor_type}', expected one of {self.SENSOR_TYPES}"
             )
         if not np.isfinite(self.noise_coefficient) or self.noise_coefficient < 0.0:
             raise ValueError(f"source '{self.name}': noise_coefficient must be a non-negative finite number")

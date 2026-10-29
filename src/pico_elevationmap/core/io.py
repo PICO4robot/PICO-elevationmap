@@ -101,7 +101,9 @@ def load_frames(path: str | Path) -> list[PointCloudFrame]:
     for i in range(len(stamps)):
         pose = poses[i] if np.isfinite(poses[i]).all() else None
         frames.append(
-            PointCloudFrame(points=points[offsets[i] : offsets[i + 1]], stamp=float(stamps[i]), pose=pose, source=str(sources[i]))
+            PointCloudFrame(
+                points=points[offsets[i] : offsets[i + 1]], stamp=float(stamps[i]), pose=pose, source=str(sources[i])
+            )
         )
     return frames
 
@@ -132,7 +134,7 @@ _MAP_META_KEYS = ("resolution", "center")
 
 
 def save_map(path: str | Path, layers: dict[str, np.ndarray], resolution: float, center: Sequence[float]) -> None:
-    """写出地图图层 + 元数据；父目录自动创建。消费方见 scripts/pipeline/export.py。"""
+    """写出地图图层 + 元数据；父目录自动创建。消费方见 pico_elevationmap/pipeline/export.py。"""
     payload = {name: np.asarray(arr, dtype=np.float32) for name, arr in layers.items()}
     payload["resolution"] = np.float32(resolution)
     payload["center"] = np.asarray(center, dtype=np.float32)
@@ -253,7 +255,9 @@ def iter_bag_frames(
 # ── 导出写出器（PLY / PGM / CSV，零图像依赖）──────────────────────────────────
 
 
-def grid_coordinates(shape: tuple[int, int], resolution: float, center: Sequence[float]) -> tuple[np.ndarray, np.ndarray]:
+def grid_coordinates(
+    shape: tuple[int, int], resolution: float, center: Sequence[float]
+) -> tuple[np.ndarray, np.ndarray]:
     """导出数组的每个 cell 的世界系 (X, Y) 坐标。
 
     与上游 export_layers 的裁剪+翻转约定严格一致：exported[row, col] 对应

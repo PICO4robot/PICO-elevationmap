@@ -1,5 +1,5 @@
 # 合成场景 run demo 配置：平地 + 方台 + 台阶，圆周轨迹单深度相机源。
-# 用法：uv run pico-elevationmap run --config scripts/tools/configs/run_sim.yaml [--save out.npz]
+# 用法：uv run pico-elevationmap run --config src/pico_elevationmap/configs/run_sim.yaml [--save out.npz]
 map:
   resolution: 0.04
   map_length: 8.0

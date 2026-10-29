@@ -40,10 +40,7 @@ def _ground_frames(n_frames: int = 3) -> list[io.PointCloudFrame]:
     sensor = (world - np.array([0.0, 0.0, 1.0])).astype(np.float32)
     pose = np.eye(4)
     pose[2, 3] = 1.0
-    return [
-        io.PointCloudFrame(points=sensor, stamp=i * 0.1, pose=pose.copy(), source="cam")
-        for i in range(n_frames)
-    ]
+    return [io.PointCloudFrame(points=sensor, stamp=i * 0.1, pose=pose.copy(), source="cam") for i in range(n_frames)]
 
 
 # ── rosbag 生成 helper（写 ROS1 .bag，PointCloud2 xyz float32 + PoseStamped）───
@@ -150,7 +147,7 @@ def _write_config(tmp_path, mapper_mod) -> object:
 
 
 def test_replay_npz_end_to_end(gpu, mapper_mod, tmp_path, monkeypatch, capsys) -> None:
-    import scripts.pipeline.replay as replay
+    import pico_elevationmap.pipeline.replay as replay
 
     frames_path = tmp_path / "frames.npz"
     io.save_frames(frames_path, _ground_frames(3))
@@ -171,7 +168,7 @@ def test_replay_npz_end_to_end(gpu, mapper_mod, tmp_path, monkeypatch, capsys) -
 
 
 def test_replay_bag_end_to_end(gpu, mapper_mod, tmp_path, monkeypatch, capsys) -> None:
-    import scripts.pipeline.replay as replay
+    import pico_elevationmap.pipeline.replay as replay
 
     bag = tmp_path / "test.bag"
     _write_rosbag1(bag, _ground_frames(2))
@@ -187,14 +184,12 @@ def test_replay_bag_end_to_end(gpu, mapper_mod, tmp_path, monkeypatch, capsys) -
 
 
 def test_replay_max_frames(gpu, mapper_mod, tmp_path, monkeypatch, capsys) -> None:
-    import scripts.pipeline.replay as replay
+    import pico_elevationmap.pipeline.replay as replay
 
     frames_path = tmp_path / "frames.npz"
     io.save_frames(frames_path, _ground_frames(5))
     config_path = _write_config(tmp_path, mapper_mod)
-    monkeypatch.setattr(
-        "sys.argv", _replay_args(frames_path, config_path, tmp_path, ["--max-frames", "2"])
-    )
+    monkeypatch.setattr("sys.argv", _replay_args(frames_path, config_path, tmp_path, ["--max-frames", "2"]))
     replay.main()
     out = capsys.readouterr().out
     assert "frame 2/2" in out

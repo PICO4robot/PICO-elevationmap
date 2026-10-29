@@ -8,21 +8,23 @@ from importlib import resources
 
 import pytest
 
-import scripts.cli as cli
+import pico_elevationmap.cli as cli
 
 SUBCOMMANDS = ("run", "replay", "bench", "export")
 # Phase 2: run / replay / export 已实现；bench 待 Phase 3（torch 后端）仍无实现模块
 STUB_SUBCOMMANDS = ("bench",)
 PACKAGES = (
     "pico_elevationmap",
+    "pico_elevationmap.cli",
     "pico_elevationmap.core",
     "pico_elevationmap.fusion",
     "pico_elevationmap.plugins",
     "pico_elevationmap.backends",
     "pico_elevationmap.sensors",
-    "scripts",
-    "scripts.pipeline",
-    "scripts.tools",
+    "pico_elevationmap.viz",
+    "pico_elevationmap.pipeline",
+    "pico_elevationmap.live",
+    "pico_elevationmap.configs",
 )
 
 
@@ -32,7 +34,7 @@ def test_packages_importable() -> None:
 
 
 def test_bundled_configs_discoverable() -> None:
-    config_dir = resources.files("scripts.tools").joinpath("configs")
+    config_dir = resources.files("pico_elevationmap.configs")
     assert config_dir.is_dir()
     names = {entry.name for entry in config_dir.iterdir() if entry.name.endswith(".yaml")}
     assert {"run_sim.yaml", "ros_camera_lidar.yaml"} <= names
@@ -49,9 +51,7 @@ def test_cli_lists_subcommands(monkeypatch: pytest.MonkeyPatch, capsys: pytest.C
 
 
 @pytest.mark.parametrize("cmd", STUB_SUBCOMMANDS)
-def test_cli_stubs_exit_nonzero(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], cmd: str
-) -> None:
+def test_cli_stubs_exit_nonzero(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], cmd: str) -> None:
     monkeypatch.setattr("sys.argv", ["pico-elevationmap", cmd, "--config", "dummy.yaml"])
     with pytest.raises(SystemExit) as exc_info:
         cli.main()

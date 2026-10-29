@@ -6,13 +6,13 @@
 
 用法：
     # 采 30 帧后保存
-    uv run python -m scripts.tools.realsense_live \\
-        --config scripts/tools/configs/realsense_live.yaml \\
+    uv run python -m pico_elevationmap.live.realsense_live \\
+        --config src/pico_elevationmap/configs/realsense_live.yaml \\
         --frames 30 --save maps/realsense_map.npz --export-ply maps/realsense.ply
 
     # 实时窗口（q / Esc 退出；--frames 0 表示一直跑到退出）
-    uv run python -m scripts.tools.realsense_live \\
-        --config scripts/tools/configs/realsense_live.yaml --view --frames 0
+    uv run python -m pico_elevationmap.live.realsense_live \\
+        --config src/pico_elevationmap/configs/realsense_live.yaml --view --frames 0
 """
 
 from __future__ import annotations
@@ -254,11 +254,21 @@ def _parse_args() -> argparse.Namespace:
         default="pointcloud2",
         help="LiDAR message type: sensor_msgs/PointCloud2 or Livox CustomMsg (default pointcloud2)",
     )
-    parser.add_argument("--lidar-source", type=str, default="lidar", help="source name in YAML for LiDAR (default lidar)")
-    parser.add_argument("--depth-source", type=str, default=None, help="source name in YAML for depth (default primary)")
-    parser.add_argument("--lidar-roll", type=float, default=0.0, help="LiDAR roll about x, degrees; use 180 for upside-down")
-    parser.add_argument("--lidar-pitch", type=float, default=0.0, help="LiDAR pitch about y, degrees; use 180 for upside-down")
-    parser.add_argument("--lidar-yaw", type=float, default=0.0, help="LiDAR yaw about z relative to map x-axis, degrees")
+    parser.add_argument(
+        "--lidar-source", type=str, default="lidar", help="source name in YAML for LiDAR (default lidar)"
+    )
+    parser.add_argument(
+        "--depth-source", type=str, default=None, help="source name in YAML for depth (default primary)"
+    )
+    parser.add_argument(
+        "--lidar-roll", type=float, default=0.0, help="LiDAR roll about x, degrees; use 180 for upside-down"
+    )
+    parser.add_argument(
+        "--lidar-pitch", type=float, default=0.0, help="LiDAR pitch about y, degrees; use 180 for upside-down"
+    )
+    parser.add_argument(
+        "--lidar-yaw", type=float, default=0.0, help="LiDAR yaw about z relative to map x-axis, degrees"
+    )
     parser.add_argument(
         "--lidar-offset",
         nargs=3,
@@ -278,19 +288,25 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--foxglove", action="store_true", help="publish PointCloud2 topics for Foxglove/RViz")
     parser.add_argument("--z-min", type=float, default=-0.1, help="fixed colorbar lower bound in metres (default -0.1)")
     parser.add_argument("--z-max", type=float, default=1.0, help="fixed colorbar upper bound in metres (default 1.0)")
-    parser.add_argument("--color-bands", type=int, default=12, help="discrete height bands (default 12; 1 = continuous)")
+    parser.add_argument(
+        "--color-bands", type=int, default=12, help="discrete height bands (default 12; 1 = continuous)"
+    )
     parser.add_argument("--voxel-view", action="store_true", help="show live 3D voxel occupancy window")
     parser.add_argument("--voxel-size", type=float, default=0.05, help="voxel edge length in metres (default 0.05)")
     parser.add_argument("--voxel-alpha", type=float, default=0.55, help="voxel square opacity 0-1 (default 0.55)")
     parser.add_argument("--voxel-min-hits", type=int, default=1, help="minimum hits to draw a voxel (default 1)")
-    parser.add_argument("--voxel-ttl", type=float, default=2.0, help="seconds before unseen voxels expire; 0 disables (default 2.0)")
+    parser.add_argument(
+        "--voxel-ttl", type=float, default=2.0, help="seconds before unseen voxels expire; 0 disables (default 2.0)"
+    )
     parser.add_argument(
         "--voxel-carve",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="clear stale voxels along current depth rays (default on)",
     )
-    parser.add_argument("--voxel-max-rays", type=int, default=1200, help="max rays used for free-space carving (default 1200)")
+    parser.add_argument(
+        "--voxel-max-rays", type=int, default=1200, help="max rays used for free-space carving (default 1200)"
+    )
     parser.add_argument("--voxel-carve-steps", type=int, default=32, help="max samples per carving ray (default 32)")
     parser.add_argument("--voxel-carve-every", type=int, default=3, help="carve every N frames (default 3)")
     parser.add_argument("--voxel-save", type=Path, default=None, help="save last 3D voxel panel PNG")
@@ -342,9 +358,7 @@ def main() -> None:
         else None
     )
     voxel_render = voxel_view or args.voxel_save is not None
-    voxel_map = (
-        VoxelMap(args.voxel_size, args.voxel_min_hits, ttl=args.voxel_ttl) if voxel_render else None
-    )
+    voxel_map = VoxelMap(args.voxel_size, args.voxel_min_hits, ttl=args.voxel_ttl) if voxel_render else None
 
     import cupy as cp
     import pyrealsense2 as rs
@@ -373,13 +387,10 @@ def main() -> None:
                 "--lidar-topic needs a ROS 2 Python environment with rclpy and sensor_msgs. "
                 "Source /opt/ros/<distro>/setup.bash, create a ROS-visible venv with "
                 "`uv venv --system-site-packages .venv-ros`, and run "
-                "`.venv-ros/bin/python -m scripts.tools.realsense_live ...`; "
+                "`.venv-ros/bin/python -m pico_elevationmap.live.realsense_live ...`; "
                 "see README `D435i + RoboSense Airy`."
             ) from exc
-        print(
-            f"[realsense] LiDAR topic {args.lidar_topic!r} ({args.lidar_msg_type}) "
-            f"-> source '{lidar_source.name}'"
-        )
+        print(f"[realsense] LiDAR topic {args.lidar_topic!r} ({args.lidar_msg_type}) -> source '{lidar_source.name}'")
 
     foxglove: FoxglovePublisher | None = None
     if args.foxglove:
@@ -476,9 +487,7 @@ def main() -> None:
                         )
                         if lidar_ground_z is None:
                             lidar_ground_z = z_used
-                            print(
-                                f"[realsense] LiDAR frame {frame_id!r}, ground z offset {lidar_ground_z:.3f} m"
-                            )
+                            print(f"[realsense] LiDAR frame {frame_id!r}, ground z offset {lidar_ground_z:.3f} m")
                         last_lidar_accepted = mapper.input(lidar_world, stamp, source=lidar_source.name)
                         lidar_frames += 1
                         if voxel_map is not None:
@@ -554,7 +563,9 @@ def main() -> None:
                 )
 
             if args.save_frames is not None:
-                saved_frames.append(io.PointCloudFrame(points=points, stamp=stamp, pose=T.copy(), source=depth_source.name))
+                saved_frames.append(
+                    io.PointCloudFrame(points=points, stamp=stamp, pose=T.copy(), source=depth_source.name)
+                )
             if (i + 1) % _PROGRESS_EVERY == 0 or (0 < args.frames == i + 1):
                 lidar_text = f", lidar {last_lidar_accepted}" if lidar_sub is not None else ""
                 print(
@@ -564,9 +575,7 @@ def main() -> None:
 
         stats = mapper.stats()
         arr = np.asarray(times)
-        print(
-            f"[realsense] timing ms/step: mean {arr.mean():.2f}, min {arr.min():.2f}, max {arr.max():.2f}"
-        )
+        print(f"[realsense] timing ms/step: mean {arr.mean():.2f}, min {arr.min():.2f}, max {arr.max():.2f}")
         if lidar_sub is not None:
             print(f"[realsense] LiDAR frames fused: {lidar_frames}")
         print(

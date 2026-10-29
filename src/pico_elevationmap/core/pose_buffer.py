@@ -127,7 +127,9 @@ class PoseBuffer:
             raise StampOutOfRangeError("pose buffer is empty")
         first, last = self._stamps[0], self._stamps[-1]
         if stamp < first:
-            raise StampOutOfRangeError(f"stamp {stamp} is {first - stamp:.6f}s before the oldest buffered pose ({first})")
+            raise StampOutOfRangeError(
+                f"stamp {stamp} is {first - stamp:.6f}s before the oldest buffered pose ({first})"
+            )
         if stamp > last:
             raise StampOutOfRangeError(f"stamp {stamp} is {stamp - last:.6f}s after the newest buffered pose ({last})")
 

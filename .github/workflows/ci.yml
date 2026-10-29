@@ -37,6 +37,12 @@ jobs:
       - name: Ruff check
         run: uv run ruff check .
 
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Shell script syntax
+        run: bash -n scripts/setup_env.sh
+
       - name: Pytest
         run: env -u PYTHONPATH uv run pytest -q
 
@@ -51,15 +57,15 @@ jobs:
           # runtime dependencies are covered by uv sync above.
           uv pip install --python "$SMOKE_DIR/venv/bin/python" --no-deps "$GITHUB_WORKSPACE"/dist/*.whl
           # Run outside the checkout so the source tree cannot shadow the installed
-          # top-level `scripts` package.
+          # `pico_elevationmap` package.
           cd "$SMOKE_DIR"
           "$SMOKE_DIR/venv/bin/pico-elevationmap" --help
           "$SMOKE_DIR/venv/bin/python" - <<'PY'
           from importlib.resources import files
-          import scripts.tools
+          import pico_elevationmap.configs
 
-          assert "site-packages" in scripts.tools.__file__, scripts.tools.__file__
-          path = files("scripts.tools").joinpath("configs", "run_sim.yaml")
+          assert "site-packages" in pico_elevationmap.configs.__file__, pico_elevationmap.configs.__file__
+          path = files("pico_elevationmap.configs").joinpath("run_sim.yaml")
           assert path.is_file(), path
           print(f"bundled config: {path}")
           PY

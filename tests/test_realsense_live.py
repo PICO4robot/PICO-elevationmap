@@ -5,14 +5,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pico_elevationmap.viz import VoxelMap, render_layer, render_voxels
-from scripts.tools.realsense_live import (
+from pico_elevationmap.live.realsense_live import (
     deproject_depth,
     estimate_ground,
     pose_from_ground,
     rotation_from_up,
     transform_lidar_points,
 )
+from pico_elevationmap.viz import VoxelMap, render_layer, render_voxels
 
 
 def test_deproject_center_and_offset() -> None:
@@ -36,9 +36,7 @@ def test_deproject_filters_invalid_and_respects_range() -> None:
 
 def test_deproject_stride_keeps_original_pixel_coordinates() -> None:
     depth = np.full((5, 5), 2.0, dtype=np.float32)
-    points = deproject_depth(
-        depth, fx=100.0, fy=100.0, ppx=2.0, ppy=2.0, stride=2, min_range=0.1, max_range=10.0
-    )
+    points = deproject_depth(depth, fx=100.0, fy=100.0, ppx=2.0, ppy=2.0, stride=2, min_range=0.1, max_range=10.0)
     assert points.shape == (9, 3)
     np.testing.assert_allclose(points[4], [0.0, 0.0, 2.0], atol=1e-6)
 

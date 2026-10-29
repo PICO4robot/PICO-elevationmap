@@ -66,9 +66,7 @@ class SingleWindowViewer:
                 return
             last_x, last_y = self._state["drag"]
             self._state["yaw"] += (x - last_x) * 0.01
-            self._state["pitch"] = float(
-                np.clip(self._state["pitch"] + (last_y - y) * 0.01, 0.05, 1.4)
-            )
+            self._state["pitch"] = float(np.clip(self._state["pitch"] + (last_y - y) * 0.01, 0.05, 1.4))
             self._state["drag"] = (x, y)
         elif event == cv2.EVENT_LBUTTONUP:
             self._state["drag"] = None

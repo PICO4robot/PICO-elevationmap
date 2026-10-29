@@ -138,9 +138,7 @@ def test_box_top_detected(gpu, mapper_mod, tmp_path) -> None:
 def test_pose_drift_keeps_map_coherent(gpu, mapper_mod, tmp_path) -> None:
     """随机游走位姿漂移 + laser 测距噪声下，地图保持相干（漂移补偿生效）。"""
     rng = np.random.default_rng(7)
-    src = SensorSourceConfig(
-        name="lidar", sensor_type="laser", noise_coefficient=0.005, min_range=0.3, max_range=10.0
-    )
+    src = SensorSourceConfig(name="lidar", sensor_type="laser", noise_coefficient=0.005, min_range=0.3, max_range=10.0)
     cfg = mapper_mod.MapperConfig(resolution=0.05, map_length=6.0, sources={"lidar": src})
     mapper = mapper_mod.ElevationMapper(cfg, plugin_dir=tmp_path)
 

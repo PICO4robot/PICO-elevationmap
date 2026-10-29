@@ -58,9 +58,7 @@ except ImportError as exc:
     Node = object  # type: ignore[misc,assignment]
     PoseWithCovarianceStamped = Odometry = PointCloud2 = Trigger = None  # type: ignore[assignment]
 
-_ROS_REQUIREMENTS = (
-    "rclpy and the ROS message packages (geometry_msgs, nav_msgs, sensor_msgs, std_srvs)"
-)
+_ROS_REQUIREMENTS = "rclpy and the ROS message packages (geometry_msgs, nav_msgs, sensor_msgs, std_srvs)"
 
 
 def _ros_unavailable_message() -> str:
@@ -119,9 +117,7 @@ class ElevationMappingNode(Node):
         self._last_ori_noise: float | None = None
         self._grid_warned = False
 
-        self.create_subscription(
-            _pose_msg_types()[self._ros.pose_type], self._ros.pose_topic, self._on_pose, 10
-        )
+        self.create_subscription(_pose_msg_types()[self._ros.pose_type], self._ros.pose_topic, self._on_pose, 10)
         self._cloud_subscriptions = {
             source: self.create_subscription(PointCloud2, topic, self._make_cloud_cb(source), 10)
             for source, topic in self._ros.point_topics.items()

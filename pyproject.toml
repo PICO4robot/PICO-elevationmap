@@ -42,12 +42,12 @@ dependencies = [
 [project.optional-dependencies]
 # ROS2 桥接为可选能力：rclpy / sensor_msgs / grid_map_msgs 由系统 ROS2 安装
 # 提供（pip 无法安装），此 extra 仅作语义标记与纯 python 依赖挂载点；
-# 核心包（pico_elevationmap + scripts）零 ROS 依赖，uv sync 不带 extra 即可。
+# 核心包（pico_elevationmap）零 ROS 依赖，uv sync 不带 extra 即可。
 ros = []
 # 无系统 CUDA toolkit 的机器：NVRTC 需要 CUDA 12.x headers + nvrtc 库。
 # 只装 cudart/nvrtc 两个组件，比完整的 cupy-cuda12x[ctk] 轻很多。
 cuda = ["cuda-toolkit[cudart,nvrtc]==12.*"]
-# RealSense D435i 等深度相机直连（scripts/tools/realsense_live.py）。
+# RealSense D435i 等深度相机直连（src/pico_elevationmap/live/realsense_live.py）。
 realsense = ["pyrealsense2>=2.55,<3"]
 
 [project.urls]
@@ -58,7 +58,7 @@ Issues = "https://github.com/PICO4robot/PICO-elevationmap/issues"
 Changelog = "https://github.com/PICO4robot/PICO-elevationmap/blob/main/CHANGELOG.md"
 
 [project.scripts]
-pico-elevationmap = "scripts.cli:main"
+pico-elevationmap = "pico_elevationmap.cli:main"
 pico-elevationmap-ros = "pico_elevationmap_ros.node:main"
 
 [build-system]
@@ -67,11 +67,11 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["pico_elevationmap*", "pico_elevationmap_ros*", "scripts*"]
+include = ["pico_elevationmap*", "pico_elevationmap_ros*"]
 
 [tool.setuptools.package-data]
 pico_elevationmap = ["py.typed"]
-"scripts.tools" = ["configs/*.yaml"]
+"pico_elevationmap.configs" = ["*.yaml"]
 
 [tool.setuptools.data-files]
 "share/pico-elevationmap" = ["THIRD_PARTY_NOTICES.md", "CHANGELOG.md"]
@@ -81,13 +81,9 @@ required-environments = [
   "sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 
-# 国内镜像优先于 PyPI 搜索，但不取代默认索引 —— default = true 会把 PyPI 完全
-# 替换掉，lock 的可复现性因此绑死在单一镜像上，镜像未收录的包也无法解析。
-# cupy-cuda12x 及其 nvidia-* 依赖在 PyPI/镜像均有收录，无需 explicit index；
-# pytorch explicit index 待 Phase 3 引入 torch 后端后按需补回。
-[[tool.uv.index]]
-url = "https://mirrors.aliyun.com/pypi/simple"
-
+# 默认使用 PyPI（uv 内置默认索引）；不再配置国内镜像，避免 lock 绑死单一镜像。
+# cupy-cuda12x 及其 nvidia-* 依赖在 PyPI 均有收录；pytorch explicit index 待
+# Phase 3 引入 torch 后端后按需补回。
 [tool.uv.sources]
 # 锁 git rev 照 PICO-rl 锁 mjlab 的写法；上游 API 变动跟随升级（dependency bumps
 # are manual PRs）。上游 pyproject 完整可直接 git 安装，无需 PyPI 回退。
@@ -106,7 +102,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
-known-first-party = ["pico_elevationmap", "scripts"]
+known-first-party = ["pico_elevationmap", "pico_elevationmap_ros"]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 
 [tool.ruff.format]

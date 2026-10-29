@@ -121,9 +121,7 @@ class SimConfig:
         return T
 
 
-def inject_noise(
-    rng: np.random.Generator, points_sensor: np.ndarray, source: SensorSourceConfig
-) -> np.ndarray:
+def inject_noise(rng: np.random.Generator, points_sensor: np.ndarray, source: SensorSourceConfig) -> np.ndarray:
     """按源的噪声模型做径向测距噪声注入（传感器系）。"""
     if len(points_sensor) == 0:
         return points_sensor
@@ -147,7 +145,9 @@ def main() -> None:
     )
     parser.add_argument("--config", required=True, type=Path, help="YAML: map / sources / plugins / sim")
     parser.add_argument("--save", type=Path, default=None, help="optional npz dump of all map layers")
-    parser.add_argument("--save-frames", type=Path, default=None, help="optional npz dump of the simulated frames (replay input)")
+    parser.add_argument(
+        "--save-frames", type=Path, default=None, help="optional npz dump of the simulated frames (replay input)"
+    )
     parser.add_argument("--steps", type=int, default=None, help="override sim.steps")
     args = parser.parse_args()
 
@@ -196,8 +196,7 @@ def main() -> None:
     stats = mapper.stats()
     arr = np.asarray(times)
     print(
-        f"[run] timing ms/step: mean {arr.mean():.2f}, min {arr.min():.2f}, max {arr.max():.2f}, "
-        f"total {arr.sum():.0f}"
+        f"[run] timing ms/step: mean {arr.mean():.2f}, min {arr.min():.2f}, max {arr.max():.2f}, total {arr.sum():.0f}"
     )
     print(
         f"[run] map stats: coverage {stats.coverage:.1%} ({stats.valid_cells}/{stats.total_cells}), "

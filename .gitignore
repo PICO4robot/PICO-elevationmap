@@ -14,3 +14,5 @@ dist/
 .cache/
 .idea/
 elevation_map_save.npz
+.coverage
+.coverage.*

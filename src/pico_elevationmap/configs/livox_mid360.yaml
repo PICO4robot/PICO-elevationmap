@@ -1,6 +1,9 @@
-# D435i + RoboSense Airy 双源配置（静态相机/雷达，ROS2 LiDAR 输入）。
-# 用法：uv run python -m scripts.tools.realsense_live \
-#   --config scripts/tools/configs/realsense_lidar.yaml --lidar-topic /rslidar_points
+# D435i + Livox Mid-360 双源配置（静态/台架验证）。
+# 用法（Livox CustomMsg）：
+#   .venv-ros/bin/python -m pico_elevationmap.live.realsense_live \
+#     --config src/pico_elevationmap/configs/livox_mid360.yaml \
+#     --lidar-topic /livox/lidar --lidar-msg-type custom
+# 若驱动已输出 PointCloud2（xfer_format=0），把 --lidar-msg-type 改为 pointcloud2。
 map:
   resolution: 0.05
   map_length: 12.0
@@ -19,7 +22,7 @@ sources:
     sensor_type: laser
     noise_coefficient: 0.005
     min_range: 0.5
-    max_range: 20.0
+    max_range: 40.0
 
 plugins:
   min_filter:

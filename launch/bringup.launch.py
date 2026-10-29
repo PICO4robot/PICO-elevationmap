@@ -4,13 +4,13 @@
 
     ros2 launch ./launch/bringup.launch.py \
         lidar:=livox lidar_topic:=/livox/lidar lidar_msg_type:=custom \
-        config:=$PWD/scripts/tools/configs/livox_mid360.yaml
+        config:=$PWD/src/pico_elevationmap/configs/livox_mid360.yaml
 
 Airy 示例：
 
     ros2 launch ./launch/bringup.launch.py \
         lidar:=airy lidar_topic:=/rslidar_points lidar_msg_type:=pointcloud2 \
-        config:=$PWD/scripts/tools/configs/realsense_lidar.yaml
+        config:=$PWD/src/pico_elevationmap/configs/realsense_lidar.yaml
 
 只跑 D435i：`lidar:=none`。
 """
@@ -37,8 +37,8 @@ from launch import LaunchDescription
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _VENV_PYTHON = _REPO_ROOT / ".venv-ros" / "bin" / "python"
-_DEFAULT_CONFIG = _REPO_ROOT / "scripts" / "tools" / "configs" / "livox_mid360.yaml"
-_AIRY_CONFIG = _REPO_ROOT / "scripts" / "tools" / "configs" / "airy_rslidar.yaml"
+_DEFAULT_CONFIG = _REPO_ROOT / "src" / "pico_elevationmap" / "configs" / "livox_mid360.yaml"
+_AIRY_CONFIG = _REPO_ROOT / "src" / "pico_elevationmap" / "configs" / "airy_rslidar.yaml"
 
 
 def _as_bool(value: str) -> bool:
@@ -76,6 +76,7 @@ def _launch_setup(context: object) -> list:
     config = LaunchConfiguration("config").perform(context)
     python = LaunchConfiguration("python").perform(context)
     frames = LaunchConfiguration("frames").perform(context)
+    warmup = LaunchConfiguration("warmup").perform(context)
     view = _as_bool(LaunchConfiguration("view").perform(context))
     voxel_view = _as_bool(LaunchConfiguration("voxel_view").perform(context))
     foxglove = _as_bool(LaunchConfiguration("foxglove").perform(context))
@@ -106,11 +107,13 @@ def _launch_setup(context: object) -> list:
     cmd = [
         python,
         "-m",
-        "scripts.tools.realsense_live",
+        "pico_elevationmap.live.realsense_live",
         "--config",
         config,
         "--frames",
         frames,
+        "--warmup",
+        warmup,
         "--lidar-msg-type",
         lidar_msg_type,
         "--lidar-roll",
@@ -155,11 +158,7 @@ def _launch_setup(context: object) -> list:
         output="screen",
     )
     actions.append(TimerAction(period=delay, actions=[mapper]))
-    actions.append(
-        RegisterEventHandler(
-            OnProcessExit(target_action=mapper, on_exit=[EmitEvent(event=Shutdown())])
-        )
-    )
+    actions.append(RegisterEventHandler(OnProcessExit(target_action=mapper, on_exit=[EmitEvent(event=Shutdown())])))
     return actions
 
 
@@ -169,12 +168,11 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument("lidar", default_value="livox", choices=["livox", "airy", "none"]),
             DeclareLaunchArgument("livox_launch", default_value="msg_MID360_launch.py"),
             DeclareLaunchArgument("lidar_topic", default_value="/livox/lidar"),
-            DeclareLaunchArgument(
-                "lidar_msg_type", default_value="custom", choices=["pointcloud2", "custom"]
-            ),
+            DeclareLaunchArgument("lidar_msg_type", default_value="custom", choices=["pointcloud2", "custom"]),
             DeclareLaunchArgument("config", default_value=str(_DEFAULT_CONFIG)),
             DeclareLaunchArgument("python", default_value=str(_VENV_PYTHON)),
             DeclareLaunchArgument("frames", default_value="0"),
+            DeclareLaunchArgument("warmup", default_value="15"),
             DeclareLaunchArgument("view", default_value="true"),
             DeclareLaunchArgument("voxel_view", default_value="true"),
             DeclareLaunchArgument("foxglove", default_value="false"),

@@ -188,7 +188,9 @@ def test_ros_camera_lidar_example_config_parses() -> None:
     pytest.importorskip("cupy", reason="cupy not installed")
     from pico_elevationmap.core.mapper import MapperConfig
 
-    config_path = Path(__file__).resolve().parents[1] / "scripts" / "tools" / "configs" / "ros_camera_lidar.yaml"
+    config_path = (
+        Path(__file__).resolve().parents[1] / "src" / "pico_elevationmap" / "configs" / "ros_camera_lidar.yaml"
+    )
     cfg = MapperConfig.from_yaml(config_path)
     ros = RosConfig.from_dict(cfg.ros, sources=cfg.sources)
 

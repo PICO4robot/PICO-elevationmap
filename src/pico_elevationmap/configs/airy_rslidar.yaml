@@ -1,6 +1,6 @@
 # RoboSense Airy (RSAIRY) driver config for rslidar_sdk (ROS2).
 # 用法：ros2 run rslidar_sdk rslidar_sdk_node --ros-args \
-#   -p config_path:=/abs/path/scripts/tools/configs/airy_rslidar.yaml
+#   -p config_path:=/abs/path/src/pico_elevationmap/configs/airy_rslidar.yaml
 # 注意：这是驱动配置，不是 pico-elevationmap 的 MapperConfig。
 common:
   msg_source: 1                         # 0: not use Lidar
