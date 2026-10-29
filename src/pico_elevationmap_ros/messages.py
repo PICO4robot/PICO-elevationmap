@@ -18,7 +18,13 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["GridMessage", "layers_to_grid_message", "pointcloud2_to_array", "pose_to_se3"]
+__all__ = [
+    "GridMessage",
+    "layers_to_grid_message",
+    "livox_custom_msg_to_array",
+    "pointcloud2_to_array",
+    "pose_to_se3",
+]
 
 # PointField datatype 常量（sensor_msgs/PointField）
 _POINTFIELD_FMT = {7: "<f4", 8: "<f8"}
@@ -81,6 +87,32 @@ def pointcloud2_to_array(msg: Any) -> tuple[np.ndarray, float, str]:
     pts = np.stack([arr["x"], arr["y"], arr["z"]], axis=1).astype(np.float32)
     finite = np.isfinite(pts).all(axis=1)
     return pts[finite], _stamp_to_float(msg.header.stamp), str(msg.header.frame_id)
+
+
+def livox_custom_msg_to_array(msg: Any) -> tuple[np.ndarray, float, str]:
+    """Livox CustomMsg → ((N,3) float32, stamp 秒, frame_id)。
+
+    ``livox_ros_driver2/msg/CustomMsg`` 的 ``points`` 通常是变长 CustomPoint 数组；
+    dtype 化后按字段取 x/y/z，普通对象列表也兼容。附加字段 offset_time /
+    reflectivity / tag / line 当前不进入核心融合。
+    """
+    points = msg.points
+    if isinstance(points, np.ndarray) and points.dtype.names:
+        missing = {"x", "y", "z"} - set(points.dtype.names)
+        if missing:
+            raise ValueError(f"Livox CustomMsg points missing fields {sorted(missing)}")
+        xyz = np.stack([points["x"], points["y"], points["z"]], axis=1)
+    else:
+        xyz = np.array([[p.x, p.y, p.z] for p in points], dtype=np.float64).reshape(-1, 3)
+    xyz = np.asarray(xyz, dtype=np.float32).reshape(-1, 3)
+    finite = np.isfinite(xyz).all(axis=1)
+    if hasattr(msg, "header"):
+        stamp = _stamp_to_float(msg.header.stamp)
+        frame_id = str(msg.header.frame_id)
+    else:
+        stamp = float(getattr(msg, "timebase", 0)) * 1e-9
+        frame_id = "livox_frame"
+    return xyz[finite], stamp, frame_id
 
 
 def _quat_to_matrix(x: float, y: float, z: float, w: float) -> np.ndarray:

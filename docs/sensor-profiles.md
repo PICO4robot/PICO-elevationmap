@@ -1,6 +1,6 @@
 # 双传感器方案：仅深度相机 vs 深度相机 + LiDAR
 
-> 版本：v0.2　日期：2026-10-28　状态：方案建议，M1/M2 原型已验证（D435i 直连），ROS 适配待实施
+> 版本：v0.3　日期：2026-10-29　状态：方案建议，M1/M2/M3 原型已跑通（D435i + Airy），精确标定/时间同步待完善
 > 关联：[design.md](design.md) §7、[deploy-hardware.md](deploy-hardware.md) §1/§6
 
 ## 1. 需求
@@ -197,13 +197,32 @@ Y = (v - cy) * Z / fy
 - `tests/test_realsense_live.py` 覆盖反投影、无效值、stride、旋转与地面估计；
 - 待办：把同一投影函数接到 ROS 侧 `depth_images` schema，并补 Image 话题 bag replay。
 
+### 4.7 RoboSense Airy 双源验证（2026-10-29）
+
+- 硬件：D435i + RoboSense Airy（Ethernet，LiDAR `192.168.1.200`，主机
+  `192.168.1.102/24`）；
+- 驱动：`rslidar_sdk` ROS2，`lidar_type: RSAIRY`，topic `/rslidar_points`，
+  实测约 8–10 Hz、6.5–7.1 万点/帧；
+- 运行：`realsense_live.py --lidar-topic /rslidar_points`，使用
+  `.venv-ros`（`--system-site-packages`）同时看到 rclpy 与项目依赖；
+- 结果：30 个相机帧融合了 15 个 LiDAR 帧，12 m 地图覆盖率 6.3%
+  （3634/57600 cells），3D 体素视图约 2.9 万格；相机建图均值约 4.6 ms/step
+  （不含 ROS/LiDAR 接收与渲染）；
+- 限制：当前用相机 stamp 作为统一时间戳，未做 LiDAR/相机硬件时间同步；外参做了
+  旋转后自动地面 z 对齐 + 手动 `--lidar-roll/--lidar-pitch/--lidar-yaw/--lidar-offset`
+  （倒装可用 roll 或 pitch=180°），精确标定待做；上游全局 `sensor_noise_factor`
+  仍由主源（深度）决定。
+- Livox Mid-360 代码路径已补：`livox_mid360.yaml`、`--lidar-msg-type custom`
+  （CustomMsg）、`launch/bringup.launch.py`（`msg_MID360_launch.py`）；本机没有
+  Livox 硬件，CustomMsg 解析由单元测试覆盖，真机待验证。
+
 ## 5. 实施计划
 
 | 里程碑 | 分支 | 内容 | 退出标准 |
 |---|---|---|---|
 | M1 配置 profile | `feat/config-profiles` | 两个 YAML、ROS 配置说明、文档与解析测试 | 两 profile 在同一 commit 解析通过；摄像头方案用驱动点云跑通 |
 | M2 深度图投影 | `feat/depth-image-projection` | `depth_images` schema、Image+CameraInfo→点云、单测 | 摄像头方案不依赖驱动点云；单测覆盖投影/无效值/外参 |
-| M3 双源融合 | `feat/lidar-multisource` | LiDAR source、双源参数、时间同步/噪声评估 | 台架/手持双源建图连贯；明确全局噪声系数的取舍 |
+| M3 双源融合 | `feat/lidar-multisource` | LiDAR source、双源参数、时间同步/噪声评估 | **原型已跑通（D435i + Airy）**；精确标定/时间同步待完善 |
 | M4 replay 与收尾 | `feat/replay-image-bags`（可选） | Image 话题 bag 回放、文档回填 | 两种 profile 的 replay 路径可用 |
 
 所有分支保持短期，合入 `main` 后删除；不建立长期 `camera-only` / `camera-lidar` 分支。

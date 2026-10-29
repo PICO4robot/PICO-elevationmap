@@ -20,12 +20,14 @@ from __future__ import annotations
 import argparse
 import itertools
 import math
+import threading
 import time
 from pathlib import Path
 
 import numpy as np
 
 from pico_elevationmap.core import io
+from pico_elevationmap.viz import FoxglovePublisher, SingleWindowViewer, VoxelMap
 
 _PROGRESS_EVERY = 10
 
@@ -144,278 +146,100 @@ def pose_from_ground(up: np.ndarray, height: float) -> tuple[np.ndarray, np.ndar
     return R, T
 
 
-def render_layer(
-    layer: np.ndarray,
+def rotation_rpy(roll_deg: float, pitch_deg: float, yaw_deg: float) -> np.ndarray:
+    """LiDAR 到地图的旋转：先 roll(x)、再 pitch(y)、最后 yaw(z)。"""
+    r, p, y = np.radians([roll_deg, pitch_deg, yaw_deg])
+    cr, sr = math.cos(r), math.sin(r)
+    cp, sp = math.cos(p), math.sin(p)
+    cy, sy = math.cos(y), math.sin(y)
+    rx = np.array([[1.0, 0.0, 0.0], [0.0, cr, -sr], [0.0, sr, cr]])
+    ry = np.array([[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]])
+    rz = np.array([[cy, -sy, 0.0], [sy, cy, 0.0], [0.0, 0.0, 1.0]])
+    return rz @ ry @ rx
+
+
+def transform_lidar_points(
+    points: np.ndarray,
     *,
-    colormap: str = "turbo",
-    z_min: float | None = None,
-    z_max: float | None = None,
-    bands: int = 12,
-    resolution: float = 0.03,
-    shade: bool = True,
-) -> np.ndarray:
-    """把地图图层渲染成 BGR 图（NaN 为深灰）。
+    roll_deg: float = 0.0,
+    pitch_deg: float = 0.0,
+    yaw_deg: float = 0.0,
+    offset: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    z_offset: float | None = None,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """LiDAR 点云 → 地图系；朝下安装用 roll/pitch=180。
 
-    ``z_min`` / ``z_max`` 给定时使用绝对高度范围（推荐，颜色跨帧稳定）；
-    否则回退到当前帧 2–98 百分位。``bands`` > 1 时做离散分层并画层间线，
-    ``shade`` 用地形坡度做明暗，突出高度起伏。
+    先施加旋转，再用旋转后点云的低分位估计地面 z，因此不依赖 LiDAR 正装还是倒装。
+    返回 ``(world_points, lidar_origin, z_offset_used)``。
     """
-    import cv2
-
-    valid = np.isfinite(layer)
-    if z_min is None or z_max is None:
-        if valid.any():
-            lo, hi = np.percentile(layer[valid], [2.0, 98.0])
-        else:
-            lo, hi = 0.0, 1.0
+    pts = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+    R = rotation_rpy(roll_deg, pitch_deg, yaw_deg)
+    rotated = (R @ pts.T).T
+    if z_offset is None:
+        ground_z = float(np.percentile(rotated[:, 2], 5.0)) if len(rotated) else 0.0
+        z_off = -ground_z
     else:
-        lo, hi = float(z_min), float(z_max)
-    if hi <= lo:
-        hi = lo + 1e-6
-    filled = np.where(valid, layer, lo)
-    norm = np.clip((filled - lo) / (hi - lo), 0.0, 1.0)
-    band_idx: np.ndarray | None = None
-    if bands > 1:
-        band_idx = np.minimum((norm * bands).astype(np.int32), bands - 1)
-        norm = (band_idx.astype(np.float32) + 0.5) / bands
-    cmap = cv2.COLORMAP_TURBO if colormap == "turbo" else cv2.COLORMAP_VIRIDIS
-    img = cv2.applyColorMap((norm * 255.0).astype(np.uint8), cmap)
-    if shade:
-        gy, gx = np.gradient(filled)
-        slope = np.hypot(gx, gy) / max(float(resolution), 1e-6)
-        factor = 0.65 + 0.35 / (1.0 + 2.0 * slope)
-        img = np.clip(img.astype(np.float32) * factor[..., None], 0, 255).astype(np.uint8)
-    if band_idx is not None:
-        edges = np.zeros_like(valid)
-        edges[1:, :] |= valid[1:, :] & valid[:-1, :] & (band_idx[1:, :] != band_idx[:-1, :])
-        edges[:, 1:] |= valid[:, 1:] & valid[:, :-1] & (band_idx[:, 1:] != band_idx[:, :-1])
-        img[edges] = (20, 20, 20)
-    img[~valid] = (25, 25, 25)
-    return img
+        z_off = float(z_offset)
+    origin = np.asarray(offset, dtype=np.float64).reshape(3) + np.array([0.0, 0.0, z_off])
+    world = rotated + origin
+    return world, origin, z_off
 
 
-def render_legend(z_min: float, z_max: float, *, height: int = 267, width: int = 90, bands: int = 12) -> np.ndarray:
-    """固定高度范围的颜色条，带米制刻度。"""
-    import cv2
+class LidarSubscriber:
+    """rclpy PointCloud2 / Livox CustomMsg 订阅器：只保留最新一帧。"""
 
-    grad = np.linspace(1.0, 0.0, height, dtype=np.float32)[:, None]
-    if bands > 1:
-        idx = np.minimum((grad * bands).astype(np.int32), bands - 1)
-        grad = (idx.astype(np.float32) + 0.5) / bands
-    strip = cv2.applyColorMap((grad * 255.0).astype(np.uint8), cv2.COLORMAP_TURBO)
-    strip = np.repeat(strip, width, axis=1)
-    panel = np.full((height, width + 66, 3), 25, dtype=np.uint8)
-    panel[:, :width] = strip
-    span = float(z_max - z_min)
-    for frac in (0.0, 0.25, 0.5, 0.75, 1.0):
-        y = 26 + int(frac * (height - 34))
-        value = z_max - frac * span
-        cv2.putText(
-            panel,
-            f"{value:.2f}",
-            (width + 5, y + 5),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.42,
-            (240, 240, 240),
-            1,
-            cv2.LINE_AA,
-        )
-    cv2.putText(panel, "m", (width + 5, 14), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (240, 240, 240), 1, cv2.LINE_AA)
-    return panel
+    def __init__(self, topic: str, msg_type: str = "pointcloud2") -> None:
+        import rclpy
+        from rclpy.qos import qos_profile_sensor_data
 
+        from pico_elevationmap_ros import messages
 
-class VoxelMap:
-    """稀疏体素占用图：世界系点云 → dict[(i,j,k)] 命中计数 + 最近观测时间。
+        if msg_type == "custom":
+            from livox_ros_driver2.msg import CustomMsg
 
-    动态场景的可视化需要“遗忘”机制：
-    - ``carve_free`` 从传感器原点沿当前深度射线采样，把射线经过的旧占用格删掉；
-    - ``prune`` 按时间戳清理超过 TTL 未再观测的体素，作为遮挡/稀疏射线的兜底。
-    """
+            self._msg_cls = CustomMsg
+            self._parse = messages.livox_custom_msg_to_array
+        elif msg_type == "pointcloud2":
+            from sensor_msgs.msg import PointCloud2
 
-    def __init__(self, voxel_size: float = 0.05, min_hits: int = 1, ttl: float | None = 2.0) -> None:
-        if voxel_size <= 0.0:
-            raise ValueError(f"voxel_size must be > 0, got {voxel_size}")
-        if min_hits < 1:
-            raise ValueError(f"min_hits must be >= 1, got {min_hits}")
-        self.voxel_size = float(voxel_size)
-        self.min_hits = int(min_hits)
-        self.ttl = ttl
-        self._counts: dict[tuple[int, int, int], int] = {}
-        self._last_seen: dict[tuple[int, int, int], float] = {}
+            self._msg_cls = PointCloud2
+            self._parse = messages.pointcloud2_to_array
+        else:
+            raise ValueError(f"unknown lidar msg_type {msg_type!r} (pointcloud2 | custom)")
 
-    def add(self, points_world: np.ndarray, stamp: float = 0.0) -> None:
-        points = np.asarray(points_world, dtype=np.float64).reshape(-1, 3)
-        points = points[np.isfinite(points).all(axis=1)]
-        if len(points) == 0:
+        self._rclpy = rclpy
+        rclpy.init()
+        self.node = rclpy.create_node("pico_elevationmap_lidar_sub")
+        self._lock = threading.Lock()
+        self._latest: tuple[np.ndarray, float, str] | None = None
+        self._seq = 0
+        self.node.create_subscription(self._msg_cls, topic, self._callback, qos_profile_sensor_data)
+
+    def _callback(self, msg: object) -> None:
+        try:
+            points, stamp, frame_id = self._parse(msg)
+        except Exception:
             return
-        keys = np.floor(points / self.voxel_size).astype(np.int64)
-        uniq, counts = np.unique(keys, axis=0, return_counts=True)
-        for key, count in zip(uniq, counts):
-            k = (int(key[0]), int(key[1]), int(key[2]))
-            self._counts[k] = self._counts.get(k, 0) + int(count)
-            self._last_seen[k] = float(stamp)
+        with self._lock:
+            self._latest = (points, stamp, frame_id)
+            self._seq += 1
 
-    def carve_free(
-        self,
-        origin: np.ndarray,
-        points_world: np.ndarray,
-        *,
-        max_rays: int = 1200,
-        max_steps: int = 32,
-    ) -> None:
-        """沿 origin → 当前点射线标记自由空间，删除射线穿过的旧占用格。
+    def spin_once(self) -> None:
+        self._rclpy.spin_once(self.node, timeout_sec=0.0)
 
-        只采样射线上的体素（不逐点 DDA），够快；端点体素不删，避免把当前
-        观测到的障碍物清掉。射线很稀疏时由 ``prune`` 的 TTL 兜底。
-        """
-        points = np.asarray(points_world, dtype=np.float64).reshape(-1, 3)
-        points = points[np.isfinite(points).all(axis=1)]
-        if len(points) == 0:
-            return
-        if len(points) > max_rays:
-            points = points[:: int(np.ceil(len(points) / max_rays))]
-        origin = np.asarray(origin, dtype=np.float64).reshape(3)
-        dist = np.linalg.norm(points - origin, axis=1)
-        points = points[dist > self.voxel_size]
-        if len(points) == 0:
-            return
-        steps = max(4, min(int(max_steps), int(np.ceil(float(dist.max()) / self.voxel_size))))
-        ts = np.linspace(0.0, 1.0, steps + 2)[1:-1]
-        samples = origin + (points[:, None, :] - origin) * ts[None, :, None]
-        free_keys = set(map(tuple, np.floor(samples / self.voxel_size).astype(np.int64).reshape(-1, 3)))
-        endpoint_keys = set(map(tuple, np.floor(points / self.voxel_size).astype(np.int64)))
-        for k in free_keys:
-            if k in self._counts and k not in endpoint_keys:
-                del self._counts[k]
-                self._last_seen.pop(k, None)
+    def latest(self) -> tuple[tuple[np.ndarray, float, str] | None, int]:
+        with self._lock:
+            return self._latest, self._seq
 
-    def prune(self, now: float, ttl: float | None = None) -> None:
-        """清理超过 TTL 未再观测的体素；ttl=0/None 表示禁用。"""
-        limit = self.ttl if ttl is None else ttl
-        if limit is None or limit <= 0.0:
-            return
-        for k, seen in list(self._last_seen.items()):
-            if now - seen > limit:
-                self._counts.pop(k, None)
-                self._last_seen.pop(k, None)
-
-    def __len__(self) -> int:
-        return len(self._counts)
-
-    def centers(self) -> np.ndarray:
-        keys = [k for k, count in self._counts.items() if count >= self.min_hits]
-        if not keys:
-            return np.empty((0, 3), dtype=np.float64)
-        arr = np.asarray(keys, dtype=np.float64)
-        return (arr + 0.5) * self.voxel_size
-
-
-def render_voxels(
-    centers: np.ndarray,
-    *,
-    z_min: float,
-    z_max: float,
-    target: np.ndarray,
-    yaw: float,
-    pitch: float,
-    distance: float,
-    voxel_size: float = 0.05,
-    width: int = 720,
-    height: int = 520,
-    fov_deg: float = 60.0,
-    bands: int = 12,
-) -> np.ndarray:
-    """把稀疏体素中心渲染成透视 3D 地图（远点先画、近点覆盖）。"""
-    import cv2
-
-    img = np.full((height, width, 3), 22, dtype=np.uint8)
-    target = np.asarray(target, dtype=np.float64)
-    eye = target + float(distance) * np.array(
-        [math.cos(pitch) * math.cos(yaw), math.cos(pitch) * math.sin(yaw), math.sin(pitch)]
-    )
-    forward = target - eye
-    forward /= max(float(np.linalg.norm(forward)), 1e-9)
-    up_world = np.array([0.0, 0.0, 1.0])
-    right = np.cross(forward, up_world)
-    if np.linalg.norm(right) < 1e-6:
-        right = np.array([1.0, 0.0, 0.0])
-    right /= np.linalg.norm(right)
-    up = np.cross(right, forward)
-    view = np.stack([right, up, -forward])
-    fx = 0.5 * width / math.tan(math.radians(fov_deg) * 0.5)
-    fy = fx
-
-    def project(points: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        cam = (np.asarray(points, dtype=np.float64) - eye) @ view.T
-        depth = -cam[:, 2]
-        u = width * 0.5 + fx * cam[:, 0] / np.maximum(depth, 1e-6)
-        v = height * 0.5 - fy * cam[:, 1] / np.maximum(depth, 1e-6)
-        return u, v, depth
-
-    # 地面网格（z=0，围绕 target 的 ±3 m）作为空间参照
-    grid = 3.0
-    for offset in np.arange(-grid, grid + 1e-6, 1.0):
-        for p0, p1 in (
-            (np.array([target[0] + offset, target[1] - grid, 0.0]), np.array([target[0] + offset, target[1] + grid, 0.0])),
-            (np.array([target[0] - grid, target[1] + offset, 0.0]), np.array([target[0] + grid, target[1] + offset, 0.0])),
-        ):
-            u, v, depth = project(np.stack([p0, p1]))
-            if (depth > 0.2).all():
-                cv2.line(img, (int(u[0]), int(v[0])), (int(u[1]), int(v[1])), (55, 55, 55), 1, cv2.LINE_AA)
-
-    # 坐标轴：x 红、y 绿、z 蓝
-    for axis, color in ((np.array([1.0, 0.0, 0.0]), (60, 60, 220)), (np.array([0.0, 1.0, 0.0]), (60, 200, 60)), (np.array([0.0, 0.0, 1.0]), (220, 120, 60))):
-        u, v, depth = project(np.stack([target, target + 0.6 * axis]))
-        if (depth > 0.2).all():
-            cv2.line(img, (int(u[0]), int(v[0])), (int(u[1]), int(v[1])), color, 2, cv2.LINE_AA)
-
-    if len(centers) > 0:
-        centers = np.asarray(centers, dtype=np.float64)
-        if len(centers) > 30000:
-            centers = centers[:: int(np.ceil(len(centers) / 30000))]
-        u, v, depth = project(centers)
-        valid = (depth > 0.2) & np.isfinite(depth)
-        valid &= (u >= 0) & (u < width) & (v >= 0) & (v < height)
-        palette = cv2.applyColorMap(
-            ((np.arange(bands, dtype=np.float32) + 0.5) / bands * 255.0).astype(np.uint8).reshape(-1, 1),
-            cv2.COLORMAP_TURBO,
-        ).reshape(-1, 3)
-        span = max(float(z_max - z_min), 1e-6)
-        band = np.clip(((centers[:, 2] - z_min) / span * bands).astype(np.int32), 0, bands - 1)
-        radius = max(1, min(6, int(round(voxel_size * fx / max(distance, 1e-6)))))
-        for idx in np.argsort(-depth):
-            if not valid[idx]:
-                continue
-            color = tuple(int(c) for c in palette[band[idx]])
-            cv2.circle(img, (int(u[idx]), int(v[idx])), radius, color, -1, cv2.LINE_AA)
-
-    cv2.putText(
-        img,
-        f"voxels {len(centers)} | yaw {math.degrees(yaw):.0f} deg | pitch {math.degrees(pitch):.0f} deg | dist {distance:.1f} m",
-        (10, 24),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.5,
-        (240, 240, 240),
-        1,
-        cv2.LINE_AA,
-    )
-    cv2.putText(
-        img,
-        "drag rotate | wheel zoom | a/d w/s +/- | q quit",
-        (10, 46),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.45,
-        (190, 190, 190),
-        1,
-        cv2.LINE_AA,
-    )
-    return img
+    def close(self) -> None:
+        self.node.destroy_node()
+        self._rclpy.shutdown()
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="realsense-live",
-        description="D435i depth -> elevation map demo (no ROS).",
+        description="D435i depth (+ optional ROS2 LiDAR) -> elevation map.",
     )
     parser.add_argument("--config", required=True, type=Path, help="YAML: map / sources / plugins")
     parser.add_argument(
@@ -423,13 +247,41 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--warmup", type=int, default=15, help="frames to discard before mapping")
     parser.add_argument("--stride", type=int, default=2, help="pixel stride for deprojection")
+    parser.add_argument("--lidar-topic", type=str, default=None, help="ROS2 LiDAR topic; enables LiDAR fusion")
+    parser.add_argument(
+        "--lidar-msg-type",
+        choices=("pointcloud2", "custom"),
+        default="pointcloud2",
+        help="LiDAR message type: sensor_msgs/PointCloud2 or Livox CustomMsg (default pointcloud2)",
+    )
+    parser.add_argument("--lidar-source", type=str, default="lidar", help="source name in YAML for LiDAR (default lidar)")
+    parser.add_argument("--depth-source", type=str, default=None, help="source name in YAML for depth (default primary)")
+    parser.add_argument("--lidar-roll", type=float, default=0.0, help="LiDAR roll about x, degrees; use 180 for upside-down")
+    parser.add_argument("--lidar-pitch", type=float, default=0.0, help="LiDAR pitch about y, degrees; use 180 for upside-down")
+    parser.add_argument("--lidar-yaw", type=float, default=0.0, help="LiDAR yaw about z relative to map x-axis, degrees")
+    parser.add_argument(
+        "--lidar-offset",
+        nargs=3,
+        type=float,
+        default=(0.0, 0.0, 0.0),
+        metavar=("X", "Y", "Z"),
+        help="LiDAR origin offset in map frame, metres",
+    )
+    parser.add_argument(
+        "--lidar-z-offset",
+        type=float,
+        default=None,
+        help="LiDAR ground-to-map z offset; default auto from 5th percentile",
+    )
     parser.add_argument("--view", action="store_true", help="show live elevation/traversability window (q/Esc quits)")
     parser.add_argument("--view-every", type=int, default=1, help="render every N frames (default 1)")
+    parser.add_argument("--foxglove", action="store_true", help="publish PointCloud2 topics for Foxglove/RViz")
     parser.add_argument("--z-min", type=float, default=-0.1, help="fixed colorbar lower bound in metres (default -0.1)")
     parser.add_argument("--z-max", type=float, default=1.0, help="fixed colorbar upper bound in metres (default 1.0)")
     parser.add_argument("--color-bands", type=int, default=12, help="discrete height bands (default 12; 1 = continuous)")
     parser.add_argument("--voxel-view", action="store_true", help="show live 3D voxel occupancy window")
     parser.add_argument("--voxel-size", type=float, default=0.05, help="voxel edge length in metres (default 0.05)")
+    parser.add_argument("--voxel-alpha", type=float, default=0.55, help="voxel square opacity 0-1 (default 0.55)")
     parser.add_argument("--voxel-min-hits", type=int, default=1, help="minimum hits to draw a voxel (default 1)")
     parser.add_argument("--voxel-ttl", type=float, default=2.0, help="seconds before unseen voxels expire; 0 disables (default 2.0)")
     parser.add_argument(
@@ -441,7 +293,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--voxel-max-rays", type=int, default=1200, help="max rays used for free-space carving (default 1200)")
     parser.add_argument("--voxel-carve-steps", type=int, default=32, help="max samples per carving ray (default 32)")
     parser.add_argument("--voxel-carve-every", type=int, default=3, help="carve every N frames (default 3)")
-    parser.add_argument("--voxel-save", type=Path, default=None, help="save last 3D voxel view PNG")
+    parser.add_argument("--voxel-save", type=Path, default=None, help="save last 3D voxel panel PNG")
+    parser.add_argument("--view-save", type=Path, default=None, help="save last combined window PNG")
     parser.add_argument("--save", type=Path, default=None, help="save map npz")
     parser.add_argument("--save-frames", type=Path, default=None, help="save frames npz for replay")
     parser.add_argument("--export-ply", type=Path, default=None, help="export elevation layer to PLY")
@@ -461,6 +314,8 @@ def main() -> None:
         raise SystemExit("--z-max must be > --z-min")
     if args.voxel_size <= 0.0:
         raise SystemExit("--voxel-size must be > 0")
+    if not 0.0 < args.voxel_alpha <= 1.0:
+        raise SystemExit("--voxel-alpha must be in (0, 1]")
     if args.voxel_min_hits < 1:
         raise SystemExit("--voxel-min-hits must be >= 1")
     if args.voxel_ttl < 0.0:
@@ -473,47 +328,23 @@ def main() -> None:
         raise SystemExit("--voxel-carve-every must be >= 1")
     view = args.view
     voxel_view = args.voxel_view
-    view_state = {
-        "yaw": math.radians(45.0),
-        "pitch": math.radians(25.0),
-        "distance": 6.0,
-        "drag": None,
-    }
-    if view or voxel_view or args.voxel_save is not None:
-        import cv2
-
-        if view:
-            cv2.namedWindow("PICO elevation map", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("PICO elevation map", 1200, 480)
-        if voxel_view:
-            cv2.namedWindow("PICO voxel map", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("PICO voxel map", 900, 650)
-
-            def _on_voxel_mouse(event: int, x: int, y: int, flags: int, _param: object) -> None:
-                if event == cv2.EVENT_LBUTTONDOWN:
-                    view_state["drag"] = (x, y)
-                elif event == cv2.EVENT_MOUSEMOVE and view_state["drag"] is not None:
-                    if not (flags & cv2.EVENT_FLAG_LBUTTON):
-                        view_state["drag"] = None
-                        return
-                    last_x, last_y = view_state["drag"]
-                    view_state["yaw"] += (x - last_x) * 0.01
-                    view_state["pitch"] = float(
-                        np.clip(view_state["pitch"] + (last_y - y) * 0.01, 0.05, 1.4)
-                    )
-                    view_state["drag"] = (x, y)
-                elif event == cv2.EVENT_LBUTTONUP:
-                    view_state["drag"] = None
-                elif event == cv2.EVENT_MOUSEWHEEL:
-                    step = -0.5 if flags > 0 else 0.5
-                    view_state["distance"] = float(np.clip(view_state["distance"] + step, 1.0, 20.0))
-
-            cv2.setMouseCallback("PICO voxel map", _on_voxel_mouse)
+    viewer = (
+        SingleWindowViewer(
+            show_2d=view,
+            show_3d=voxel_view,
+            z_min=args.z_min,
+            z_max=args.z_max,
+            bands=args.color_bands,
+            voxel_size=args.voxel_size,
+            voxel_alpha=args.voxel_alpha,
+        )
+        if (view or voxel_view)
+        else None
+    )
     voxel_render = voxel_view or args.voxel_save is not None
     voxel_map = (
         VoxelMap(args.voxel_size, args.voxel_min_hits, ttl=args.voxel_ttl) if voxel_render else None
     )
-    last_voxel_canvas: np.ndarray | None = None
 
     import cupy as cp
     import pyrealsense2 as rs
@@ -521,7 +352,46 @@ def main() -> None:
     from pico_elevationmap.core.mapper import ElevationMapper, MapperConfig
 
     cfg = MapperConfig.from_yaml(args.config)
-    source = cfg.primary_source
+    depth_source = cfg.resolve_source(args.depth_source) if args.depth_source else cfg.primary_source
+    lidar_source = None
+    lidar_sub: LidarSubscriber | None = None
+    if args.lidar_topic is not None:
+        try:
+            lidar_source = cfg.resolve_source(args.lidar_source)
+        except KeyError as exc:
+            raise SystemExit(f"{args.lidar_source!r} not declared in the config sources") from exc
+        try:
+            lidar_sub = LidarSubscriber(args.lidar_topic, args.lidar_msg_type)
+        except ImportError as exc:
+            if args.lidar_msg_type == "custom" and (exc.name or "").startswith("livox_ros_driver2"):
+                raise SystemExit(
+                    "--lidar-msg-type custom needs the Livox ROS 2 driver (livox_ros_driver2). "
+                    "Build and source that driver, or use --lidar-msg-type pointcloud2 for "
+                    "RoboSense / standard PointCloud2 topics."
+                ) from exc
+            raise SystemExit(
+                "--lidar-topic needs a ROS 2 Python environment with rclpy and sensor_msgs. "
+                "Source /opt/ros/<distro>/setup.bash, create a ROS-visible venv with "
+                "`uv venv --system-site-packages .venv-ros`, and run "
+                "`.venv-ros/bin/python -m scripts.tools.realsense_live ...`; "
+                "see README `D435i + RoboSense Airy`."
+            ) from exc
+        print(
+            f"[realsense] LiDAR topic {args.lidar_topic!r} ({args.lidar_msg_type}) "
+            f"-> source '{lidar_source.name}'"
+        )
+
+    foxglove: FoxglovePublisher | None = None
+    if args.foxglove:
+        try:
+            foxglove = FoxglovePublisher(node=lidar_sub.node if lidar_sub is not None else None)
+        except ImportError as exc:
+            raise SystemExit(
+                "--foxglove needs a ROS 2 Python environment with rclpy, sensor_msgs and "
+                "builtin_interfaces. Source /opt/ros/<distro>/setup.bash and use a ROS-visible "
+                "venv (`uv venv --system-site-packages .venv-ros`); see README `Foxglove`."
+            ) from exc
+        print("[realsense] Foxglove topics: /pico_elevationmap/elevation_points, /pico_elevationmap/voxels")
 
     pipeline = rs.pipeline()
     rs_cfg = rs.config()
@@ -542,8 +412,8 @@ def main() -> None:
             ppx=intr.ppx,
             ppy=intr.ppy,
             stride=args.stride,
-            min_range=source.min_range,
-            max_range=source.max_range,
+            min_range=depth_source.min_range,
+            max_range=depth_source.max_range,
         )
         up, height, ratio = estimate_ground(probe)
         R, T = pose_from_ground(up, height)
@@ -557,9 +427,13 @@ def main() -> None:
         print(f"[realsense] R_base_optical=\n{np.round(R, 3)}")
 
         mapper = ElevationMapper(cfg)
-        mapper.move_to([0.0, 0.0, 0.0], R)
+        mapper.move_to([0.0, 0.0, 0.0], np.eye(3))
         times: list[float] = []
         saved_frames: list[io.PointCloudFrame] = []
+        last_lidar_seq = 0
+        lidar_ground_z: float | None = None
+        lidar_frames = 0
+        last_lidar_accepted = 0
         last_view_t: float | None = None
         fps = 0.0
         frame_iter = range(args.frames) if args.frames > 0 else itertools.count()
@@ -577,153 +451,124 @@ def main() -> None:
                 ppx=intr.ppx,
                 ppy=intr.ppy,
                 stride=args.stride,
-                min_range=source.min_range,
-                max_range=source.max_range,
+                min_range=depth_source.min_range,
+                max_range=depth_source.max_range,
             )
+            camera_world = (R @ points.T).T + T[:3, 3]
+            mapper.add_pose(stamp, np.eye(4))
+
+            if lidar_sub is not None and lidar_source is not None:
+                lidar_sub.spin_once()
+                latest, seq = lidar_sub.latest()
+                if latest is not None and seq != last_lidar_seq:
+                    lidar_points, _lidar_stamp, frame_id = latest
+                    dist = np.linalg.norm(lidar_points, axis=1)
+                    keep = (dist >= lidar_source.min_range) & (dist <= lidar_source.max_range)
+                    lidar_points = lidar_points[keep]
+                    if len(lidar_points):
+                        lidar_world, lidar_origin, z_used = transform_lidar_points(
+                            lidar_points,
+                            roll_deg=args.lidar_roll,
+                            pitch_deg=args.lidar_pitch,
+                            yaw_deg=args.lidar_yaw,
+                            offset=args.lidar_offset,
+                            z_offset=lidar_ground_z,
+                        )
+                        if lidar_ground_z is None:
+                            lidar_ground_z = z_used
+                            print(
+                                f"[realsense] LiDAR frame {frame_id!r}, ground z offset {lidar_ground_z:.3f} m"
+                            )
+                        last_lidar_accepted = mapper.input(lidar_world, stamp, source=lidar_source.name)
+                        lidar_frames += 1
+                        if voxel_map is not None:
+                            voxel_map.add(lidar_world, stamp)
+                            if args.voxel_carve and i % args.voxel_carve_every == 0:
+                                voxel_map.carve_free(
+                                    lidar_origin,
+                                    lidar_world,
+                                    max_rays=args.voxel_max_rays,
+                                    max_steps=args.voxel_carve_steps,
+                                )
+                    last_lidar_seq = seq
+
             if voxel_map is not None:
-                world_points = (R @ points.T).T + T[:3, 3]
-                voxel_map.add(world_points, stamp)
+                voxel_map.add(camera_world, stamp)
                 if args.voxel_carve and i % args.voxel_carve_every == 0:
                     voxel_map.carve_free(
                         T[:3, 3],
-                        world_points,
+                        camera_world,
                         max_rays=args.voxel_max_rays,
                         max_steps=args.voxel_carve_steps,
                     )
-                voxel_map.prune(stamp)
-            mapper.add_pose(stamp, T)
             t0 = time.perf_counter()
-            accepted = mapper.input(points, stamp, source=source.name)
+            accepted = mapper.input(camera_world, stamp, source=depth_source.name)
             cp.cuda.Stream.null.synchronize()
             times.append((time.perf_counter() - t0) * 1e3)
             mapper.update_variance()
             mapper.update_time()
+            if voxel_map is not None:
+                voxel_map.prune(stamp)
 
-            if view and (i + 1) % args.view_every == 0:
-                elevation = mapper.get_layer("elevation")
-                elev_img = render_layer(
-                    elevation,
-                    colormap="turbo",
-                    z_min=args.z_min,
-                    z_max=args.z_max,
-                    bands=args.color_bands,
-                    resolution=cfg.resolution,
-                )
-                panels = [elev_img]
-                traversability = None
-                try:
-                    traversability = mapper.get_layer("traversability_geo")
-                except KeyError:
-                    pass
-                if traversability is not None:
-                    panels.append(
-                        render_layer(
-                            traversability,
-                            colormap="viridis",
-                            z_min=0.0,
-                            z_max=1.0,
-                            bands=2,
-                            shade=False,
-                        )
-                    )
-                legend = render_legend(
-                    args.z_min,
-                    args.z_max,
-                    height=elev_img.shape[0],
-                    bands=args.color_bands,
-                )
-                panels.append(legend)
-                canvas = np.hstack(panels)
-                scale = 420.0 / elev_img.shape[0]
-                canvas = cv2.resize(canvas, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
+            if viewer is not None and (i + 1) % args.view_every == 0:
                 now = time.perf_counter()
                 if last_view_t is not None:
                     inst = 1.0 / max(now - last_view_t, 1e-6)
                     fps = inst if fps == 0.0 else 0.9 * fps + 0.1 * inst
                 last_view_t = now
+
+                elevation = mapper.get_layer("elevation")
+                traversability = None
+                try:
+                    traversability = mapper.get_layer("traversability_geo")
+                except KeyError:
+                    pass
                 valid = np.isfinite(elevation)
                 coverage = float(valid.mean())
-                z = elevation[valid]
-                z_text = f"z [{z.min():.2f}, {z.max():.2f}] m" if z.size else "z [--]"
-                cv2.putText(
-                    canvas,
-                    f"elevation | {fps:5.1f} fps | coverage {coverage:5.1%} | {z_text}",
-                    (10, 24),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.55,
-                    (255, 255, 255),
-                    1,
-                    cv2.LINE_AA,
-                )
-                panel_w = int(elev_img.shape[1] * scale)
-                if traversability is not None:
-                    cv2.putText(
-                        canvas,
-                        "traversability_geo",
-                        (panel_w + 10, 24),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.55,
-                        (255, 255, 255),
-                        1,
-                        cv2.LINE_AA,
-                    )
-                cv2.imshow("PICO elevation map", canvas)
-
-            if voxel_render and (i + 1) % args.view_every == 0:
-                assert voxel_map is not None
-                centers = voxel_map.centers()
+                centers = voxel_map.centers() if voxel_map is not None else np.empty((0, 3))
                 center = mapper.center
-                view_target = np.array([center[0], center[1], 0.0])
-                voxel_img = render_voxels(
-                    centers,
-                    z_min=args.z_min,
-                    z_max=args.z_max,
-                    target=view_target,
-                    yaw=view_state["yaw"],
-                    pitch=view_state["pitch"],
-                    distance=view_state["distance"],
-                    voxel_size=args.voxel_size,
-                    bands=args.color_bands,
+                target = np.array([center[0], center[1], 0.0])
+                canvas = viewer.compose(
+                    elevation=elevation,
+                    traversability=traversability,
+                    voxel_centers=centers,
+                    target=target,
+                    fps=fps,
+                    coverage=coverage,
+                    resolution=cfg.resolution,
                 )
-                voxel_legend = render_legend(
-                    args.z_min,
-                    args.z_max,
-                    height=voxel_img.shape[0],
-                    bands=args.color_bands,
-                )
-                last_voxel_canvas = np.hstack([voxel_img, voxel_legend])
-                if voxel_view:
-                    cv2.imshow("PICO voxel map", last_voxel_canvas)
-
-            if (view or voxel_view) and (i + 1) % args.view_every == 0:
-                key = cv2.waitKey(1) & 0xFF
-                if key in (27, ord("q")):
+                viewer.show(canvas)
+                if viewer.wait_key():
                     print("[realsense] view closed")
                     break
-                if voxel_view:
-                    if key == ord("a"):
-                        view_state["yaw"] -= 0.1
-                    elif key == ord("d"):
-                        view_state["yaw"] += 0.1
-                    elif key == ord("w"):
-                        view_state["pitch"] = min(view_state["pitch"] + 0.08, 1.4)
-                    elif key == ord("s"):
-                        view_state["pitch"] = max(view_state["pitch"] - 0.08, 0.05)
-                    elif key in (ord("+"), ord("=")):
-                        view_state["distance"] = max(1.0, view_state["distance"] - 0.5)
-                    elif key in (ord("-"), ord("_")):
-                        view_state["distance"] = min(20.0, view_state["distance"] + 0.5)
+
+            if foxglove is not None and (i + 1) % args.view_every == 0:
+                elevation = mapper.get_layer("elevation")
+                centers = voxel_map.centers() if voxel_map is not None else np.empty((0, 3))
+                foxglove.publish(
+                    elevation=elevation,
+                    centers=centers,
+                    resolution=cfg.resolution,
+                    center=mapper.center,
+                    stamp=stamp,
+                )
 
             if args.save_frames is not None:
-                saved_frames.append(io.PointCloudFrame(points=points, stamp=stamp, pose=T.copy(), source=source.name))
+                saved_frames.append(io.PointCloudFrame(points=points, stamp=stamp, pose=T.copy(), source=depth_source.name))
             if (i + 1) % _PROGRESS_EVERY == 0 or (0 < args.frames == i + 1):
-                print(f"[realsense] frame {i + 1}/{args.frames}: {len(points)} pts ({accepted} fused), {times[-1]:.2f} ms")
+                lidar_text = f", lidar {last_lidar_accepted}" if lidar_sub is not None else ""
+                print(
+                    f"[realsense] frame {i + 1}/{args.frames}: {len(points)} pts "
+                    f"({accepted} fused{lidar_text}), {times[-1]:.2f} ms"
+                )
 
         stats = mapper.stats()
         arr = np.asarray(times)
         print(
             f"[realsense] timing ms/step: mean {arr.mean():.2f}, min {arr.min():.2f}, max {arr.max():.2f}"
         )
+        if lidar_sub is not None:
+            print(f"[realsense] LiDAR frames fused: {lidar_frames}")
         print(
             f"[realsense] map stats: coverage {stats.coverage:.1%} ({stats.valid_cells}/{stats.total_cells}), "
             f"height mean {stats.mean_height:.3f} m, range [{stats.min_height:.3f}, {stats.max_height:.3f}] m"
@@ -746,14 +591,22 @@ def main() -> None:
             args.export_pgm.parent.mkdir(parents=True, exist_ok=True)
             io.write_pgm(args.export_pgm, mapper.get_layer("elevation"))
             print(f"[realsense] exported PGM -> {args.export_pgm}")
-        if args.voxel_save is not None and last_voxel_canvas is not None:
+        if args.voxel_save is not None and viewer is not None and viewer.last_voxel_panel is not None:
             args.voxel_save.parent.mkdir(parents=True, exist_ok=True)
-            cv2.imwrite(str(args.voxel_save), last_voxel_canvas)
+            viewer.save_voxel(str(args.voxel_save))
             print(f"[realsense] saved voxel view -> {args.voxel_save}")
+        if args.view_save is not None and viewer is not None and viewer.last_canvas is not None:
+            args.view_save.parent.mkdir(parents=True, exist_ok=True)
+            viewer.save_canvas(str(args.view_save))
+            print(f"[realsense] saved combined view -> {args.view_save}")
     finally:
         pipeline.stop()
-        if view or voxel_view:
-            cv2.destroyAllWindows()
+        if foxglove is not None:
+            foxglove.close()
+        if lidar_sub is not None:
+            lidar_sub.close()
+        if viewer is not None:
+            viewer.close()
 
 
 if __name__ == "__main__":

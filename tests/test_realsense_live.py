@@ -5,14 +5,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from pico_elevationmap.viz import VoxelMap, render_layer, render_voxels
 from scripts.tools.realsense_live import (
-    VoxelMap,
     deproject_depth,
     estimate_ground,
     pose_from_ground,
-    render_layer,
-    render_voxels,
     rotation_from_up,
+    transform_lidar_points,
 )
 
 
@@ -125,3 +124,32 @@ def test_render_voxels_returns_image() -> None:
     assert img.shape == (520, 720, 3)
     assert img.dtype == np.uint8
     assert img.std() > 0.0
+
+
+def test_lidar_transform_normal_puts_ground_at_zero() -> None:
+    points = np.array([[0.0, 0.0, -0.3], [1.0, 0.2, -0.3]])
+    world, origin, z_off = transform_lidar_points(points, offset=(0.0, 0.0, 0.0))
+    assert z_off == pytest.approx(0.3, abs=1e-9)
+    np.testing.assert_allclose(world[:, 2], [0.0, 0.0], atol=1e-9)
+    assert origin[2] == pytest.approx(0.3, abs=1e-9)
+
+
+def test_lidar_transform_upside_down_puts_ground_at_zero() -> None:
+    points = np.array([[0.0, 0.0, 0.3], [1.0, 0.2, 0.3]])
+    world, origin, z_off = transform_lidar_points(points, roll_deg=180.0, offset=(0.0, 0.0, 0.0))
+    assert z_off == pytest.approx(0.3, abs=1e-9)
+    np.testing.assert_allclose(world[:, 2], [0.0, 0.0], atol=1e-9)
+    np.testing.assert_allclose(world[:, 1], [0.0, -0.2], atol=1e-9)
+    assert origin[2] == pytest.approx(0.3, abs=1e-9)
+
+
+def test_lidar_transform_yaw_and_offset() -> None:
+    world, origin, z_off = transform_lidar_points(
+        np.array([[1.0, 0.0, 0.0]]),
+        yaw_deg=90.0,
+        offset=(1.0, 2.0, 3.0),
+        z_offset=0.0,
+    )
+    np.testing.assert_allclose(world[0], [1.0, 3.0, 3.0], atol=1e-9)
+    np.testing.assert_allclose(origin, [1.0, 2.0, 3.0], atol=1e-9)
+    assert z_off == pytest.approx(0.0)
