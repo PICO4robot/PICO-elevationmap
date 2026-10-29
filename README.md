@@ -1,7 +1,11 @@
 # PICO-elevationmap
 
+[![CI](https://github.com/PICO4robot/PICO-elevationmap/actions/workflows/ci.yml/badge.svg)](https://github.com/PICO4robot/PICO-elevationmap/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
+
 PICO-elevationmap is a ROS-free 2.5D elevation mapping library for PICO quadrupeds and
-humanoids, split out of an internal PICO monorepo (not public yet).
+humanoids, split out of an internal PICO monorepo.
 
 What sets it apart from the upstream ROS packages: poses come from a timestamped SE3
 buffer instead of tf, sensor noise and the postprocessing plugin chain are YAML-driven,

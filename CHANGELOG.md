@@ -76,11 +76,10 @@ The project is pre-1.0: minor releases may contain breaking changes.
 - `launch/bringup.launch.py` now fails fast with an actionable error when the
   configured `.venv-ros` Python is missing, while keeping `python:=` configurable.
 
-## [0.4.0] - unreleased
+## [0.4.0] - 2026-10-30
 
-Version 0.4.0 is the current pre-release version in `pyproject.toml`; no git tag has
-been created yet. The release workflow and readiness checklist target tag `v0.4.0`.
-Summary of the work on `main`:
+First public GitHub release (source alpha; no PyPI publishing). The release workflow
+and readiness checklist target tag `v0.4.0`. Summary of the work on `main`:
 
 - ROS-free core wrapping `elevation_mapping_cupy_core` with a timestamped SE3 pose
   buffer instead of tf.

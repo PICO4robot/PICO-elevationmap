@@ -92,14 +92,14 @@ README、design 与本节已同步。
 - [x] 许可证已定为 MIT：`LICENSE`、`pyproject.toml`、README 与 design/readiness 已同步
 - [x] 添加并核对 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)，核对上游 MIT/BSD 文本
 - [x] 重新生成不绑定 Aliyun 镜像的 `uv.lock`，并让 `uv lock --check` 通过
-- [ ] `uv sync --frozen` 在干净环境可复现（待本轮 CI）
+- [x] `uv sync --frozen` 在干净环境可复现（CI run `40976152323`）
 - [x] `env -u PYTHONPATH uv run pytest -q` 通过（GPU/ROS 用例按环境 skip）
 - [x] `uv run ruff check .` 与 `uv run ruff format --check .` 通过
 - [x] `uv build` 成功，`uvx twine check dist/*` 通过
 - [x] 在临时 venv 安装 wheel，运行 `pico-elevationmap --help`，并确认
       `pico_elevationmap.configs/*.yaml` 可从 wheel 中发现（CI smoke 已在 run
-      `40971256320` 执行，本轮再次本地验证）
-- [x] CI workflow 已在 GitHub Actions 上实际执行并通过（run `40971256320`，Python 3.12）
+      `40976152323` 执行，本地也验证过）
+- [x] CI workflow 已在 GitHub Actions 上实际执行并通过（run `40976152323`，Python 3.12）
 - [x] wheel 内含 `py.typed`；`CHANGELOG.md` 与 `THIRD_PARTY_NOTICES.md` 通过
       `data-files` 进入 wheel，sdist 通过 `MANIFEST.in` 包含文档与 launch 示例
 - [x] 确认 `docs/assets/` 未打入不必要的大文件
