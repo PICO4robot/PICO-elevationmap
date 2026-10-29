@@ -4,8 +4,13 @@ recordings/
 __pycache__/
 *.pyc
 .venv/
+.venv-ros/
+.pytest_cache/
+.ruff_cache/
 *.egg-info/
+build/
 dist/
 .uv/
 .cache/
 .idea/
+elevation_map_save.npz
