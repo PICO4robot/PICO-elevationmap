@@ -1,14 +1,15 @@
 # 开发环境搭建与验证
 
-> 版本：v0.1　日期：2026-10-28　状态：已在 Ubuntu 24.04 + RTX 4060 Laptop 实测
+> 版本：v0.2　日期：2026-10-30　状态：已在 Ubuntu 24.04 + RTX 4060 Laptop 实测；
+> 2026-10-30 重跑 CPU/无 ROS 测试
 > 目标：从零构建 PICO-elevationmap 的开发环境，跑通建图 demo、测试与 lint。
 
 ## 1. 前置条件
 
 | 项 | 要求 | 说明 |
 |---|---|---|
-| OS | Ubuntu 24.04（x86_64 或 aarch64） | CI 与实机方案均以 24.04 为基线 |
-| Python | 3.12（uv 管理） | `.python-version` 已固定 3.12；pyproject 支持 3.10–3.12 |
+| OS | Ubuntu 24.04（x86_64） | 支持矩阵以 x86_64 为基线；aarch64 / Jetson 为实验性，暂无 CI 覆盖 |
+| Python | 3.12（uv 管理） | CI 只测 3.12；3.10 / 3.11 在 CI matrix 出现前不作为受支持版本 |
 | uv | 最新稳定版 | `uv --version` |
 | GPU | NVIDIA，驱动支持 CUDA 12.x+ | 另需 CUDA 12.x headers；不必装完整 toolkit，见 §3 |
 | 网络 | 可访问 GitHub 与 PyPI/镜像 | upstream 是 git 依赖；见 §4 |
@@ -25,7 +26,7 @@ CUDA toolkit**。驱动 13.x 可以运行 CUDA 12.x 程序（向后兼容），�
 ## 2. 安装
 
 ```bash
-git clone git@github.com:PICO4robot/PICO-elevationmap.git
+git clone https://github.com/PICO4robot/PICO-elevationmap.git
 cd PICO-elevationmap
 uv sync
 ```
@@ -99,7 +100,6 @@ uv 缓存，后续 `uv run` 不再访问 GitHub。
 ## 5. 快速验证
 
 ```bash
-mkdir -p maps   # run/replay 的 --save 不会自动创建父目录
 uv run pico-elevationmap run --config scripts/tools/configs/run_sim.yaml \
     --save maps/map.npz --save-frames maps/frames.npz
 uv run pico-elevationmap replay --config scripts/tools/configs/run_sim.yaml \
@@ -108,9 +108,10 @@ uv run pico-elevationmap export --input maps/replay_map.npz \
     --layers elevation --output maps/elevation.pgm
 ```
 
+`--save` / `--save-frames` 会自动创建父目录；`maps/` 已在 `.gitignore` 中。
+
 期望：`run` 打印 60 步耗时与地图统计；`replay` / `export` 在 `maps/` 下生成
-npz、PLY 与 PGM。`maps/` 已在 `.gitignore` 中。RTX 4060 Laptop 实测约
-**5 ms/step**（0.04 m 分辨率、约 4.6 万点/帧，仅供参考）。
+npz、PLY 与 PGM。RTX 4060 Laptop 实测约 **5 ms/step**（0.04 m 分辨率、约 4.6 万点/帧，仅供参考）。
 
 ### 5.1 RealSense D435i 直连（可选）
 
@@ -144,25 +145,112 @@ uv run python -m scripts.tools.realsense_live \
 - 高度超过 `z-max` 会被夹到最高色；场景更高时调大 `--z-max`；
 - `--color-bands 1` 切回连续色带。
 
-3D 体素窗口：
+3D 体素视图：
 
-- `--voxel-view` 打开独立的透视窗口，`--voxel-size` 控制体素边长（默认 5 cm）；
-- 先点击 3D 窗口获得焦点：鼠标左键拖拽旋转、滚轮缩放；也可用 `a/d` 偏航、
+- `--view` 只看 2D；`--voxel-view` 只看 3D；两个一起用会在**同一个窗口**里
+  显示上半 2D（高程 + traversability + 色标）和下半 3D 体素；
+- `--voxel-size` 控制体素边长（默认 5 cm），渲染为带透明度的小方块；
+  `--voxel-alpha`（默认 0.55）调整透明度；
+- 点击窗口获得焦点：鼠标左键拖拽旋转、滚轮缩放；也可用 `a/d` 偏航、
   `w/s` 俯仰、`+/-` 缩放、`q` 退出；
 - 动态障碍物：默认每 3 帧沿当前深度射线清空自由空间；`--voxel-ttl`（默认 2 s）
   清理未再观测的体素，`--no-voxel-carve` 关闭射线清空；`--voxel-carve-every`、
   `--voxel-max-rays`、`--voxel-carve-steps` 可调清理频率/开销；
 - 视图 target 跟随 `mapper.center`；接上里程计/位姿后，地图和视角会随运动前移；
-- `--voxel-save maps/realsense_voxel.png` 可在退出时保存最后一帧 3D 视图。
+- `--voxel-save` 保存最后一帧 3D 面板；`--view-save` 保存完整合并窗口。
 
 本机 D435i（fw 5.17.0.10）实测：`--stride 2` 约 3.7–7.2 万点/帧（取决于有效
 深度比例），稳定后约 8–11 ms/step。桌面视角下桌面接近掠射，地图覆盖率会偏低；
 把相机抬高并下俯 20–30°、让地面进入视野，覆盖率会明显改善。
 
+### 5.2 D435i + RoboSense Airy 双源
+
+Airy 默认 IP 为 `192.168.1.200`，主机网卡配到同网段（如 `192.168.1.102/24`）：
+
+```bash
+nmcli connection add type ethernet ifname <usb-eth-iface> con-name lidar-airy \
+    ipv4.method manual ipv4.addresses 192.168.1.102/24 ipv4.never-default yes
+nmcli connection up lidar-airy
+ping -c 3 192.168.1.200
+```
+
+RoboSense 驱动用 ROS2 `rslidar_sdk`（`lidar_type: RSAIRY`，发布
+`/rslidar_points`）。Ubuntu 上先准备 `libpcap-dev`、`libyaml-cpp-dev`、PCL 等依赖，
+然后在独立工作区编译：
+
+```bash
+colcon build --packages-select rslidar_msg rslidar_sdk
+source install/setup.bash
+ros2 run rslidar_sdk rslidar_sdk_node --ros-args -p config_path:=/abs/path/scripts/tools/configs/airy_rslidar.yaml
+```
+
+双源脚本需要能看到系统 ROS 包，单独建一个带 `--system-site-packages` 的 venv：
+
+```bash
+uv venv --system-site-packages .venv-ros
+UV_PROJECT_ENVIRONMENT=.venv-ros uv sync --extra cuda --extra realsense
+
+source /opt/ros/jazzy/setup.bash
+source /path/to/rslidar_ws/install/setup.bash
+.venv-ros/bin/python -m scripts.tools.realsense_live \
+    --config scripts/tools/configs/realsense_lidar.yaml \
+    --lidar-topic /rslidar_points --frames 30 \
+    --save maps/dual_map.npz --export-ply maps/dual.ply
+```
+
+本机实测：Airy 约 8–10 Hz、6.5–7.1 万点/帧；30 个相机帧融合 15 个 LiDAR 帧，
+12 m 地图覆盖率 6.3%，3D 体素视图约 2.9 万格。当前用相机 stamp 统一对齐，
+LiDAR 时间戳未参与位姿插值；外参用 `--lidar-roll` / `--lidar-pitch` /
+`--lidar-yaw` / `--lidar-offset` 手工微调。默认 LiDAR z 轴朝上；**倒装时加
+`--lidar-roll 180`（绕 x 翻转）或 `--lidar-pitch 180`（绕 y 翻转）**，自动地面
+z 估计会在旋转后重新计算。精确标定与硬件时间同步仍需补测。
+
+### 5.3 ROS2 launch
+
+`launch/bringup.launch.py` 负责启动驱动 + 建图，`start_delay` 默认 3 s，
+建图进程退出时 launch 会关闭驱动：
+
+```bash
+# Livox Mid-360（CustomMsg）
+ros2 launch ./launch/bringup.launch.py \
+    lidar:=livox lidar_topic:=/livox/lidar lidar_msg_type:=custom \
+    config:=$PWD/scripts/tools/configs/livox_mid360.yaml
+
+# Airy（PointCloud2）
+ros2 launch ./launch/bringup.launch.py \
+    lidar:=airy lidar_topic:=/rslidar_points lidar_msg_type:=pointcloud2 \
+    config:=$PWD/scripts/tools/configs/realsense_lidar.yaml
+```
+
+常用参数：`view`、`voxel_view`、`frames`、`lidar_roll/pitch/yaw`、
+`lidar_offset`、`voxel_alpha`、`foxglove`、`save_map`、`voxel_save`、`view_save`。Livox 驱动需先
+build/source `livox_ros_driver2`；若驱动输出 PointCloud2，把
+`lidar_msg_type` 改成 `pointcloud2` 并使用对应 launch 文件。launch 只负责进程
+编排，不解决 PTP/时间同步、QoS 和外参标定。
+
+### 5.4 Foxglove
+
+```bash
+source /opt/ros/jazzy/setup.bash
+.venv-ros/bin/python -m scripts.tools.realsense_live \
+    --config scripts/tools/configs/realsense_lidar.yaml \
+    --lidar-topic /rslidar_points \
+    --foxglove --view --voxel-view --frames 0
+```
+
+发布两个带 rgb 的 `sensor_msgs/PointCloud2`：
+
+- `/pico_elevationmap/elevation_points`
+- `/pico_elevationmap/voxels`
+
+另一个终端运行 `ros2 run foxglove_bridge foxglove_bridge`，Foxglove Studio 连接
+`ws://<host>:8765` 后在 3D 面板添加这两个 topic。`foxglove_bridge` 需要单独安装；
+它只做桥接，不改变建图逻辑。
+
 ## 6. 测试与 lint
 
 ```bash
-uv run pytest -q          # 本机基线：72 passed, 1 skipped（无 ROS）
+env -u PYTHONPATH uv run pytest -q          # 本机基线：全部通过，GPU/ROS 用例自动 skip（无 ROS）
 uv run ruff check .
 ```
 
@@ -184,10 +272,23 @@ sudo apt install ros-jazzy-grid-map-msgs
 让 uv venv 看到系统 ROS 包，然后同步：
 
 ```bash
-uv venv --system-site-packages --allow-existing
+export UV_PROJECT_ENVIRONMENT=.venv-ros
+uv venv --system-site-packages --allow-existing .venv-ros
 source /opt/ros/jazzy/setup.bash
 uv sync --extra ros
 ```
+
+真实运行（本仓库暂无 ament `package.xml`，使用 wheel 安装的 console script）：
+
+```bash
+source /opt/ros/jazzy/setup.bash
+uv run pico-elevationmap-ros --config scripts/tools/configs/ros_camera_lidar.yaml
+uv run pico-elevationmap-ros --config=scripts/tools/configs/ros_camera_lidar.yaml
+```
+
+`--config path` 与 `--config=path` 两种写法都支持。`uv run pico-elevationmap-ros --help`
+未 source ROS 也可用；缺少 rclpy / 消息包时启动会给出可操作的错误提示，而不是
+import traceback。
 
 真实 ROS 集成测试：
 
@@ -209,18 +310,22 @@ uv run pytest -q -m requires_ros
 |---|---|
 | `uv sync` 卡在 `git fetch` / `curl 28` | 按 §4 配 SSH 或代理；确认 `ssh -T git@github.com` |
 | `Failed to find CUDA headers` | 按 §3 安装 `cupy-cuda12x[ctk]` 或设置 `CUDA_PATH`（CUDA 12.x） |
-| `FileNotFoundError: maps/...` | 先 `mkdir -p maps`，或把 `--save` 指向已存在的目录 |
+| `FileNotFoundError: maps/...` | `io.save_map` / `io.save_frames` 会自动创建父目录；PLY/PGM/CSV 导出请确保输出目录存在 |
 | pytest 收集阶段报 ROS 插件 / `lark` 错误 | 未 source ROS 的 shell 中跑核心测试，或 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` |
 | `numpy<2` 的旧说明 | 已过时；当前 lock 为 numpy 2.x，测试通过 |
 | 无 NVIDIA GPU | 可安装、可跑 CPU 测试；`run` / `replay` 需要 GPU，无 GPU 时无法建图 |
 
-## 9. 已验证组合（2026-10-28）
+## 9. 已验证组合
+
+> 最近一次完整硬件验证：2026-10-28（Ubuntu 24.04.5 + RTX 4060 Laptop + D435i）。
+> 2026-10-30 重新运行了 `env -u PYTHONPATH uv run pytest -q`（CPU / 无 ROS 路径），
+> 结果：全部通过，GPU/ROS 用例自动 skip。
 
 | 项 | 值 |
 |---|---|
 | OS / Python / uv | Ubuntu 24.04.5 / 3.12.3 / 0.11.16 |
 | GPU / 驱动 | RTX 4060 Laptop 8 GB / 595.99（CUDA 13.2） |
 | CuPy | 14.2.0（cupy-cuda12x），runtime 12.9，NVRTC 用 CUDA 12.9 headers（`cuda-toolkit[cudart,nvrtc]`） |
-| `pytest -q` | 72 passed, 1 skipped（无 ROS） |
-| `run` | 60 步，约 5.02 ms/step，覆盖率 78.7% |
-| RealSense | D435i fw 5.17.0.10，640×480@30，stride 2 约 3.7–7.2 万点/帧，约 8–11 ms/step |
+| `env -u PYTHONPATH uv run pytest -q` | 2026-10-30 重跑：全部通过；GPU/ROS 用例自动 skip（无 ROS） |
+| `run` | 2026-10-28 验证：60 步，约 5.02 ms/step，覆盖率 78.7% |
+| RealSense | 2026-10-28 验证：D435i fw 5.17.0.10，640×480@30，stride 2 约 3.7–7.2 万点/帧，约 8–11 ms/step |

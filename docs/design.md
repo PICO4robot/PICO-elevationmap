@@ -1,6 +1,10 @@
 # PICO-elevationmap 设计方案
 
-> 版本：v0.2（草案）　日期：2026-10-28　分支：`main`
+> 版本：v0.2（草案）　日期：2026-10-28　状态：历史设计稿
+>
+> ⚠️ **历史设计文档**：本文记录 2026-10 的设计推演，其中 CI、torch 后端、
+> ROS 打包与许可证等状态可能已过时。当前发布/许可证姿态、支持矩阵与已知限制
+> 以 [open-source-readiness.md](open-source-readiness.md) 为准。
 
 本文档给出 PICO-elevationmap 的总体设计：上游开源项目分析、需要遵循的 PICO 家族约定、
 目标架构、模块划分、传感器方案、工程规范与实施路线图。
@@ -79,11 +83,12 @@
 5. **src layout** 多包结构（参照 PICO-rl：框架层 / 任务层 / 资产层单向依赖）；
    `scripts/cli.py` 唯一 lazy-import CLI dispatcher；
 6. pytest 测试，tests/ 镜像 src 布局，合成数据 fixture（无外部资产时自动 skip）；
-7. CI：单文件 `.github/workflows/ci.yml`，`workflow_dispatch` 手动触发，
-   `PICO_READ_PAT` 检出私有 sibling，`MUJOCO_GL=osmesa` headless；
+7. CI：单文件 `.github/workflows/ci.yml`，push/PR 触发，CPU lint / test / build；
+   不依赖 GPU 或私有 sibling 检出；
 8. SemVer 写在 pyproject `version`；conventional commits（本仓库 scope 用 `(map)`）；
    需要消费 sibling 资产时用 ASSETS.lock + check_asset_pins.py 锁 commit；
-9. License：代码 Proprietary（与 rl/dataset 一致）。
+9. License：MIT（2026-10-30 起）；发布姿态见
+   [open-source-readiness.md](open-source-readiness.md)。
 
 ## 4. 核心决策：基于 cupy_core 包装，而非从零重写
 
@@ -98,11 +103,14 @@
 | C. 从零重写 | 无外部依赖 | 重复造 CUDA kernel，成本高 |
 
 采纳 **A**：`tool.uv.sources` 把 `elevation-mapping-cupy-core` 锁到具体 git rev。
-PICO-elevationmap 的差异化价值在于：**配置体系、插件层、I/O 桥接、torch 批量后端、
-与 PICO-rl 的 observation 集成**。定制化需求积累到一定程度后再评估部分 vendor。
+PICO-elevationmap 的差异化价值在于：**配置体系、插件层、I/O 桥接、与 PICO-rl 的
+observation 集成**；torch 批量后端设计为差异化方向，但 Phase 3 暂缓。定制化需求
+积累到一定程度后再评估部分 vendor。
 
-License 合规：cupy_core（MIT）、elevation_mapping（BSD-3）均与 Proprietary 兼容；
-vendor 任何代码必须保留原始 license header，README 致谢。
+License 合规：cupy_core（MIT）、elevation_mapping（BSD-3）的版权与许可证声明必须
+保留；最终许可证方案（OSI / source-available / 双许可）尚未决定，见
+[open-source-readiness.md](open-source-readiness.md) 与
+[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)。
 
 ## 5. 目标架构
 
@@ -136,14 +144,14 @@ vendor 任何代码必须保留原始 license header，README 致谢。
 3. **双后端（最大差异化价值）**：
    - `cupy` 后端：实机实时建图（包装 cupy_core）；
    - `torch` 后端：mjlab 仿真中 N 个并行环境各自维护一张图，批量输出作为
-     PICO-rl 的 observation——leggedrobotics 项目不具备的能力，与 PICO-rl
-     已有的 PyTorch 依赖天然衔接。
+     PICO-rl 的 observation——Phase 3 设计目标，当前暂缓；与 PICO-rl 已有的
+     PyTorch 依赖天然衔接。
 
 ## 6. 仓库结构
 
 ```
 PICO-elevationmap/
-├── pyproject.toml              # setuptools + uv，version = 0.4.0，Proprietary
+├── pyproject.toml              # setuptools + uv，version = 0.4.0，license = MIT
 ├── uv.lock
 ├── README.md
 ├── docs/
@@ -166,7 +174,7 @@ PICO-elevationmap/
 │   ├── pipeline/               # run / replay / export（bench 待 Phase 3）
 │   └── tools/                  # 一次性工具 + configs/*.yaml
 ├── tests/                      # pytest，镜像 src 布局，合成数据 fixture
-└── .github/workflows/ci.yml    # workflow_dispatch + PICO_READ_PAT + osmesa
+└── .github/workflows/ci.yml    # push/PR CPU gate（lint + test + build）
 ```
 
 命名约定：包 `pico_elevationmap`，distribution `pico-elevationmap`，
@@ -198,7 +206,7 @@ CLI `pico-elevationmap`（dispatcher 模式）。
 ### 7.4 PICO 落地顺序
 
 1. **仿真先行**：mjlab 渲染深度 + 真值位姿 + 可调注入噪声，打通 torch 批量后端
-   与 RL observation 链路；
+   与 RL observation 链路（Phase 3，当前暂缓）；
 2. **实机最小方案**：头部单深度相机 + 腿部里程计（覆盖脚下 0.3–6 m，支撑楼梯/台阶）；
 3. **实机完整方案**：深度相机 + 顶部 360° LiDAR 双输入源 + LIO 位姿。
 
@@ -213,17 +221,18 @@ CLI `pico-elevationmap`（dispatcher 模式）。
   [development.md](development.md#3-cuda-运行时与-headers)）；
   torch 待 Phase 3 引入后再用 explicit index（照 PICO-rl 写法）；
 - **ruff**：`[tool.ruff]` 段照抄 PICO-rl（120 列、双引号、`E,W,F,I,UP`）；
-- **测试**：pytest，tests/ 镜像 src；CI 无 GPU，用合成数据 + mock 后端，
-  GPU 用例按 conftest 自动 skip 模式处理；
+- **测试**：pytest，tests/ 镜像 src；CI 无 GPU，只跑 CPU 测试并由 conftest 自动
+  skip GPU/ROS 用例，不依赖 mock 后端；GPU 路径需在带 CUDA 的机器上单独验证；
 - **版本**：SemVer 从 0.1.0 起步，写 pyproject `version`（当前 0.4.0）；
   conventional commits，scope 用 `(map)`；
 - **资产联动**：仿真 / 测试消费 PICO-robot MJCF 模型时，照抄 ASSETS.lock +
   check_asset_pins.py 机制；
-- **CI**：单文件 workflow_dispatch 触发，ubuntu-24.04，`MUJOCO_GL=osmesa`，
-  私有 sibling 用 `PICO_READ_PAT` 检出；
+- **CI**：单文件 push/PR 触发，ubuntu-24.04，CPU lint / test / build；GPU/ROS 用例
+  自动 skip；不再依赖 `PICO_READ_PAT` 或 osmesa；
 - **开发环境**：前置条件、CUDA headers、GitHub 访问与排障见
   [development.md](development.md)；
-- **License**：Proprietary；README 致谢上游 MIT/BSD 项目。
+- **License**：MIT；第三方 MIT/BSD 声明见
+  [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)。
 
 ## 9. 实施路线图
 
@@ -240,7 +249,8 @@ CLI `pico-elevationmap`（dispatcher 模式）。
 
 ## 10. 风险与开放问题
 
-- **GPU 依赖**：cupy_core 无 CPU fallback；CI / 开发机无 GPU 时靠合成数据 + mock 后端；
+- **GPU 依赖**：cupy_core 无 CPU fallback；CI / 开发机无 GPU 时只跑 CPU 测试并
+  skip GPU 用例，不声称 GPU 路径已通过 CI；
 - **上游 API 稳定性**：cupy_core 是 2026 年新抽出的库，锁 git rev + 定期人工升级
   （符合家族"dependency bumps are manual PRs"惯例）；
 - **CUDA 环境**：CuPy 后端依赖 CUDA 12.x 运行时与 headers；驱动 13.x 向后兼容

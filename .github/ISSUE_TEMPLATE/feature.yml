@@ -1,0 +1,51 @@
+name: Feature request
+description: Propose a focused improvement to pico-elevationmap
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project is pre-1.0. Please describe the problem before the proposed
+        implementation, and keep the scope small enough for one reviewable change.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what is missing or awkward today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the API, CLI or documentation change you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches, workarounds or upstream features you considered.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Core mapper / pose buffer / I/O
+        - Plugins / fusion
+        - ROS 2 bridge
+        - RealSense / LiDAR tooling
+        - Packaging / CI / docs
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I understand this project is pre-1.0 and not production-ready.
+          required: true

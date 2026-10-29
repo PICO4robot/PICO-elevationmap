@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible defect in pico-elevationmap
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. This project is pre-1.0 and not production-ready.
+        Please remove credentials, tokens and personal data before submitting.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the exact command, config and input format.
+      placeholder: |
+        1. Run `uv run pico-elevationmap ...`
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output or traceback
+      description: Paste the shortest log or traceback that shows the failure.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: "0.4.0, or the output of `git rev-parse --short HEAD`"
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - x86_64 Linux + NVIDIA GPU
+        - x86_64 Linux, CPU only (tests / help paths)
+        - aarch64 / Jetson (experimental)
+        - ROS 2 environment
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I removed secrets, tokens and personal data from this report.
+          required: true

@@ -1,27 +1,30 @@
 # PICO-elevationmap
 
-Elevation mapping for PICO robots, split out of the [PICO](https://github.com/PICO4robot/PICO) monorepo.
+PICO-elevationmap is a ROS-free 2.5D elevation mapping library for PICO quadrupeds and
+humanoids, split out of an internal PICO monorepo (not public yet).
 
-ROS-free 2.5D elevation mapping framework for PICO quadrupeds / humanoids: a CuPy GPU
-core wrapping [elevation_mapping_cupy_core](https://github.com/leggedrobotics/elevation_mapping_cupy_core),
-with pluggable fusion, a YAML-driven postprocessing plugin chain (including our own
-geometric slope / traversability plugins), offline replay from npz sequences or rosbags,
-and an optional ROS2 bridge. Documentation index: [docs/README.md](docs/README.md)
-(framework design, development environment, hardware deployment plan, semantic
+What sets it apart from the upstream ROS packages: poses come from a timestamped SE3
+buffer instead of tf, sensor noise and the postprocessing plugin chain are YAML-driven,
+and the same map can be replayed offline from npz sequences or rosbags — no ROS graph
+required. Documentation index: [docs/README.md](docs/README.md) (framework design,
+development environment, hardware deployment plan, API, release readiness, semantic
 extension proposal, concepts).
 
-This repository is developed on topic branches; `main` only serves as the entry point
-summarizing what each branch contains.
+## Support matrix
 
-## Branches
+| Area | Status |
+|---|---|
+| Platform | x86_64 Linux, NVIDIA GPU, CUDA 12.x headers |
+| Python | 3.12 (CI target); 3.10/3.11 are not supported until a CI matrix exists |
+| aarch64 / Jetson | Experimental; no CI coverage |
+| ROS2 bridge | Optional; requires a sourced ROS2 environment. No ament package yet — use `uv run pico-elevationmap-ros --config ...` |
+| RealSense / LiDAR | Optional; D435i direct-SDK and ROS2 LiDAR paths are prototype quality |
+| torch backend / `bench` | Deferred (Phase 3) |
+| License | MIT (see [LICENSE](LICENSE)) |
+| Production readiness | Not production-ready; see [docs/open-source-readiness.md](docs/open-source-readiness.md) |
 
-| Branch | Status | Contents |
-|---|---|---|
-| [`design/framework`](https://github.com/PICO4robot/PICO-elevationmap/tree/design/framework) | Merged to main | Framework design proposal ([docs/design.md](docs/design.md)): analysis of the leggedrobotics/ANYbotics elevation-mapping projects, target architecture (ROS-free core + CuPy/torch dual backends), repo layout, sensor plan, and roadmap. |
-| [`feat/phase0-scaffold`](https://github.com/PICO4robot/PICO-elevationmap/tree/feat/phase0-scaffold) | Merged to main | Installable package skeleton: src-layout `pico_elevationmap` (core/fusion/plugins/backends/sensors stubs), `pico-elevationmap` CLI dispatcher, uv + ruff + pytest, CI. No GPU/ROS deps yet. |
-| [`feat/phase1-core-pipeline`](https://github.com/PICO4robot/PICO-elevationmap/tree/feat/phase1-core-pipeline) | Merged to main | Core mapping pipeline on GPU: wraps `elevation_mapping_cupy_core` (git-pinned) — SE3 pose buffer (replaces tf), per-source YAML sensor noise configs, `ElevationMapper` facade, plugin chain, real `pico-elevationmap run` demo with synthetic scenes. Verified on RTX 4090: 2.5 ms/step, test suite green. |
-| [`feat/phase2-plugins-replay`](https://github.com/PICO4robot/PICO-elevationmap/tree/feat/phase2-plugins-replay) | Merged to main | Plugin chain (inpaint / smooth / geometric slope+traversability as own plugins), offline `replay` (npz frames, ROS1/ROS2 bags via pure-python rosbags), `export` to PLY/PGM/CSV. Test suite green. |
-| [`feat/phase4-ros2-bridge`](https://github.com/PICO4robot/PICO-elevationmap/tree/feat/phase4-ros2-bridge) | Merged to main | Optional ROS2 bridge package `pico_elevationmap_ros` (core stays zero-ROS): PointCloud2/Odometry→numpy conversion, GridMap packing, node with pub/sub + clear/save services. Mock-verified (no ROS2 on dev machine). Phase 3 (torch batch backend / PICO-rl integration) deferred. |
+The core library and CPU tests install and run without a GPU; mapping itself needs a
+CUDA device at runtime.
 
 ## Layout
 
@@ -34,8 +37,8 @@ src/pico_elevationmap/       # 核心包（零 ROS 依赖）
   backends/                  # 后端抽象占位（torch 批量后端为 deferred Phase 3）
 src/pico_elevationmap_ros/   # 可选 ROS2 桥接（rclpy 依赖仅存在于该包 node.py）
 scripts/                     # cli.py 唯一 lazy-import dispatcher + pipeline/（run/replay/export）+ tools/configs/
-tests/                       # pytest，镜像 src；GPU 用例 requires_gpu 自动 skip，ROS 集成用例 requires_ros 自动 skip
-docs/                        # 设计、开发环境、硬件部署、语义扩展、概念
+tests/                       # pytest，镜像 src；GPU 用例由 conftest 的 requires_gpu 条件自动 skip，ROS 集成用例由 requires_ros 条件自动 skip（均非 pytest marker）
+docs/                        # 设计、开发环境、硬件部署、API、开源发布、语义扩展、概念
 ```
 
 ## Install
@@ -45,6 +48,9 @@ Prerequisites and troubleshooting (CUDA headers, GitHub access, ROS2 venv) are i
 installation itself is CPU-friendly.
 
 ```bash
+git clone https://github.com/PICO4robot/PICO-elevationmap.git
+cd PICO-elevationmap
+
 uv sync              # core + dev tools (pytest / ruff)
 uv sync --extra cuda --extra realsense  # driver-only CUDA headers + D435i direct SDK
 uv sync --extra ros  # ROS semantic marker; system ROS2 provides rclpy / grid_map_msgs
@@ -54,11 +60,18 @@ On a driver-only machine, make sure NVRTC can find CUDA 12.x headers before the 
 run (`uv sync --extra cuda`, `cupy-cuda12x[ctk]`, or `CUDA_PATH`); see
 [development.md §3](docs/development.md#3-cuda-运行时与-headers).
 
+Wheels bundle the example YAML configs under `scripts/tools/configs/` (including
+`ros_camera_lidar.yaml`). `launch/bringup.launch.py` remains **repo-only** and is
+not packaged into the wheel; copy it from a source checkout if needed. To locate the
+bundled configs in an installed wheel:
+
+```bash
+python -c "from importlib.resources import files; print(files('scripts.tools') / 'configs')"
+```
+
 ## Quickstart
 
 ```bash
-mkdir -p maps   # run/replay 的 --save 不会自动创建父目录
-
 # 合成场景实时建图 demo（平地 + 方台 + 台阶，圆周轨迹）
 uv run pico-elevationmap run --config scripts/tools/configs/run_sim.yaml \
     --save maps/map.npz --save-frames maps/frames.npz
@@ -71,20 +84,33 @@ uv run pico-elevationmap replay --config scripts/tools/configs/run_sim.yaml \
 uv run pico-elevationmap export --input maps/replay_map.npz --layers elevation --output maps/elevation.pgm
 ```
 
+`--save` / `--save-frames` 会自动创建父目录；`maps/` 已在 `.gitignore` 中。
+
 配置 YAML 分 `map`（分辨率/门限等）、`sources`（每源噪声与量程）、`plugins`
 （上游 inpainting/smoothing + 自有 geo_*）、`sim`（run 的仿真参数）、`ros`
 （桥接参数）五段，键名拼写与取值越界都会报明确错误；示例见
 `scripts/tools/configs/run_sim.yaml`。
 
+## Visual proof
+
+![D435i live elevation/traversability and 3D voxel view](https://raw.githubusercontent.com/PICO4robot/PICO-elevationmap/main/docs/assets/realsense_window.png)
+
+D435i live session: fixed absolute colour bands plus traversability (top) and the
+accumulated 3D voxel view (bottom). This is prototype-quality output from a static
+camera, not a calibrated deployment; see the RealSense section below. Images live in
+`docs/assets/`; the README uses absolute raw URLs so PyPI renders them.
+
 ## Development
 
 ```bash
-uv run pytest -q
+env -u PYTHONPATH uv run pytest -q
 uv run ruff check .
 ```
 
-环境准备、CUDA headers、GitHub 访问与常见问题见
-[docs/development.md](docs/development.md)。
+GPU and ROS integration cases skip automatically when the corresponding hardware or
+environment is absent; the suite does not hardcode a pass count. Environment setup,
+CUDA headers, GitHub access and troubleshooting are in
+[docs/development.md](docs/development.md).
 
 ## RealSense live (optional)
 
@@ -93,12 +119,13 @@ D435i 直连建图，不依赖 ROS：
 ```bash
 uv sync --extra cuda --extra realsense
 
-# 实时 2D + 3D：左高程 / 中 traversability / 右色标；独立 3D 体素窗口
+# 实时 2D + 3D：同一个窗口，上半高程/traversability/色标，下半 3D 体素
 uv run python -m scripts.tools.realsense_live \
     --config scripts/tools/configs/realsense_live.yaml \
     --view --voxel-view --frames 0 \
     --z-min -0.1 --z-max 1.0 --color-bands 12 \
-    --voxel-size 0.05 --voxel-save maps/realsense_voxel.png
+    --voxel-size 0.05 --voxel-save maps/realsense_voxel.png \
+    --view-save maps/realsense_window.png
 
 # 或采 30 帧后保存
 uv run python -m scripts.tools.realsense_live \
@@ -110,14 +137,106 @@ uv run python -m scripts.tools.realsense_live \
 
 实时 2D 颜色用**固定绝对高度范围** `--z-min/--z-max`（默认 -0.1/1.0 m），
 12 个高度带 + 坡度明暗 + 层间线 + 右侧米制色标，同色即同高；`--color-bands 1`
-可切回连续色带。3D 体素窗口按 `--voxel-size`（默认 5 cm）累积占用格。先点击
-3D 窗口获得焦点：鼠标左键拖拽旋转、滚轮缩放；也可用 `a/d` 偏航、`w/s` 俯仰、
-`+/-` 缩放，`q` 退出。动态障碍物离开后，默认每 3 帧沿当前深度射线清空自由
-空间，并用 `--voxel-ttl`（默认 2 s）清理未再观测的体素；`--no-voxel-carve`
-可关闭射线清空。当前脚本假设静态相机；接上里程计后 3D 视图会跟随地图中心移动。
+可切回连续色带。3D 体素窗口按 `--voxel-size`（默认 5 cm）累积占用格，渲染为
+带透明度的小方块（`--voxel-alpha`，默认 0.55）。先点击 3D 窗口获得焦点：鼠标
+左键拖拽旋转、滚轮缩放；也可用 `a/d` 偏航、`w/s` 俯仰、`+/-` 缩放，`q` 退出。
+动态障碍物离开后，默认每 3 帧沿当前深度射线清空自由空间，并用 `--voxel-ttl`
+（默认 2 s）清理未再观测的体素；`--no-voxel-carve` 可关闭射线清空。当前脚本
+假设静态相机；接上里程计后 3D 视图会跟随地图中心移动。
 
 脚本会按深度图内参反投影、自动估计近场主平面并构造 Z-up 地图系。相机抬高并
 下俯 20–30°、让地面进入视野时效果最好；桌面掠射视角的覆盖率会偏低。
+
+## D435i + RoboSense Airy (optional)
+
+Airy 通过以太网接入，默认 LiDAR IP `192.168.1.200`，主机网卡配
+`192.168.1.102/24`。用 RoboSense `rslidar_sdk` 的 ROS2 驱动发布
+`/rslidar_points`（`lidar_type: RSAIRY`），再用带系统 ROS 可见性的 venv
+运行双源脚本：
+
+```bash
+# 终端 A：启动 Airy 驱动
+source /opt/ros/jazzy/setup.bash
+source /path/to/rslidar_ws/install/setup.bash
+ros2 run rslidar_sdk rslidar_sdk_node --ros-args \
+    -p config_path:=$PWD/scripts/tools/configs/airy_rslidar.yaml
+
+# 终端 B：双源建图
+uv venv --system-site-packages .venv-ros
+UV_PROJECT_ENVIRONMENT=.venv-ros uv sync --extra cuda --extra realsense
+
+source /opt/ros/jazzy/setup.bash
+source /path/to/rslidar_ws/install/setup.bash
+
+.venv-ros/bin/python -m scripts.tools.realsense_live \
+    --config scripts/tools/configs/realsense_lidar.yaml \
+    --lidar-topic /rslidar_points --frames 30 \
+    --save maps/dual_map.npz --export-ply maps/dual.ply
+```
+
+`--lidar-z-offset` 缺省时按旋转后点云 5% 分位估计地面；`--lidar-yaw`、
+`--lidar-roll`、`--lidar-pitch` 和 `--lidar-offset X Y Z` 用于手工外参。
+默认假设 LiDAR z 轴朝上；**倒装时用 `--lidar-roll 180`（绕 x 翻转）或
+`--lidar-pitch 180`（绕 y 翻转）**，具体取决于实际翻转轴。当前验证使用相机
+时间戳做统一对齐，精确的相机-LiDAR 时间同步和外参标定仍待补。
+
+![D435i + RoboSense Airy 3D voxel view](https://raw.githubusercontent.com/PICO4robot/PICO-elevationmap/main/docs/assets/dual_voxel.png)
+
+D435i + Airy dual-source voxel view (prototype; extrinsics/time sync still manual).
+
+## ROS2 launch (bringup)
+
+`launch/bringup.launch.py` 用一条命令拉起 LiDAR 驱动 + D435i + 建图窗口。先
+`source` ROS2 和对应驱动工作区，并准备好 `.venv-ros`。该 launch 文件是
+**repo-only 示例，不包含在 wheel 中**；wheel 用户需从源码 checkout 获取。
+若 `.venv-ros/bin/python` 不存在，launch 会先给出可操作的错误（可用
+`python:=/path/to/python` 覆盖），而不是等到 spawn 才失败。
+
+```bash
+# Livox Mid-360（CustomMsg）
+ros2 launch ./launch/bringup.launch.py \
+    lidar:=livox lidar_topic:=/livox/lidar lidar_msg_type:=custom \
+    config:=$PWD/scripts/tools/configs/livox_mid360.yaml
+
+# RoboSense Airy（PointCloud2）
+ros2 launch ./launch/bringup.launch.py \
+    lidar:=airy lidar_topic:=/rslidar_points lidar_msg_type:=pointcloud2 \
+    config:=$PWD/scripts/tools/configs/realsense_lidar.yaml
+
+# 只跑 D435i
+ros2 launch ./launch/bringup.launch.py \
+    lidar:=none config:=$PWD/scripts/tools/configs/realsense_live.yaml
+```
+
+默认 `view:=true voxel_view:=true frames:=0`，`foxglove:=false`；按 `q` 退出建图后
+launch 会一并关闭驱动；`start_delay:=3.0` 是驱动启动到建图启动的默认等待。Livox 默认
+`livox_launch:=msg_MID360_launch.py`（CustomMsg）；如果驱动改成 PointCloud2，
+把 `lidar_msg_type` 改为 `pointcloud2` 并使用对应的 PointCloud2 launch 文件。
+
+## Foxglove (optional)
+
+`--foxglove` 会把高程点和体素中心发布为标准 `sensor_msgs/PointCloud2`
+（带 rgb 颜色），配合 ROS2 `foxglove_bridge` 可在 Foxglove Studio 中看 3D：
+
+```bash
+source /opt/ros/jazzy/setup.bash
+.venv-ros/bin/python -m scripts.tools.realsense_live \
+    --config scripts/tools/configs/realsense_lidar.yaml \
+    --lidar-topic /rslidar_points \
+    --foxglove --view --voxel-view --frames 0
+
+# 另一个终端
+ros2 run foxglove_bridge foxglove_bridge
+```
+
+Topic：
+
+- `/pico_elevationmap/elevation_points`
+- `/pico_elevationmap/voxels`
+
+Foxglove Studio 连接 `ws://<host>:8765` 后，在 3D 面板添加这两个 PointCloud2
+即可。`foxglove_bridge` 需要单独安装/编译；它只负责桥接，不改变建图逻辑。
+`--foxglove` 也可以和 `lidar:=none` 的相机-only 模式一起用。
 
 ## ROS2 bridge (optional)
 
@@ -127,26 +246,32 @@ uv run python -m scripts.tools.realsense_live \
 并提供 `~/clear`、`~/save`（Trigger）服务。真实环境运行（需先 source ROS2）：
 
 ```bash
-ros2 run pico_elevationmap_ros mapping_node --ros-args -p config:=/abs/path/config.yaml
-# 或（本 wheel 的控制台脚本，同样要求 ROS2 环境已 source）
-pico-elevationmap-ros --config /abs/path/config.yaml
+source /opt/ros/jazzy/setup.bash
+uv run pico-elevationmap-ros --config scripts/tools/configs/ros_camera_lidar.yaml
+uv run pico-elevationmap-ros --config=scripts/tools/configs/ros_camera_lidar.yaml   # 等价写法
 ```
+
+若使用带系统 ROS 可见性的 `.venv-ros`，在命令前加
+`UV_PROJECT_ENVIRONMENT=.venv-ros`。示例配置
+`scripts/tools/configs/ros_camera_lidar.yaml` 已包含 `ros:` 段（`point_topics`
+键与 `sources` 一致、`pose_topic: /odom`），并随 wheel 一起打包。
+
+本仓库暂无 ament `package.xml`，因此不提供 `ros2 run pico_elevationmap_ros ...`
+入口；请使用上面的 console script。`uv run pico-elevationmap-ros --help` 在未
+source ROS 的环境也可用；缺少 ROS 依赖时启动会给出可操作的错误提示，而不是
+import traceback。
 
 核心包不 import 任何 ROS 组件；桥接逻辑（消息转换/打包/接线）由 sys.modules
 桩单测覆盖，真实 ROS2 集成用例以 `requires_ros` 标记、无 ROS 时自动 skip。
 系统 ROS2 包、`grid_map_msgs` 与 `--system-site-packages` venv 的配置见
 [development.md §7](docs/development.md#7-可选ros2-桥接开发)。
 
-## Sibling repositories
-
-- [PICO-robot](https://github.com/PICO4robot/PICO-robot) — robot model assets (URDF/MJCF)
-- [PICO-rl](https://github.com/PICO4robot/PICO-rl) — reinforcement learning framework
-- [PICO-dataset](https://github.com/PICO4robot/PICO-dataset) — dataset registry
-
 ## License
 
-Proprietary (PICO). Built on and wrapping these upstream open-source projects — many
-thanks to their authors:
+PICO-elevationmap is released under the [MIT License](LICENSE).
+
+Built on and wrapping these upstream open-source projects — many thanks to their authors.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the upstream MIT/BSD notices.
 
 - [elevation_mapping_cupy_core](https://github.com/leggedrobotics/elevation_mapping_cupy_core) (MIT) — CUDA fusion kernels, `ElevationMap`, plugin manager
 - [elevation_mapping_cupy](https://github.com/leggedrobotics/elevation_mapping_cupy) (MIT, Miki et al. IROS 2022) — GPU elevation mapping
