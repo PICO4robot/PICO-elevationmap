@@ -1,0 +1,119 @@
+# 前后左右四台 D435i 的 rig 示例。
+#
+# 1. 用 `rs-enumerate-devices -s` 或运行本脚本的 `--list` 获取序列号；
+# 2. 替换下面的 REPLACE_* 序列号；
+# 3. 按实际安装位置修改 xyz / roll / pitch / yaw（base 系：x 前、y 左、z 上）。
+#
+# 用法：
+#   uv run python -m pico_elevationmap.live.quad_camera_live \
+#       --config src/pico_elevationmap/configs/quad_camera.yaml \
+#       --view --voxel-view --frames 0
+#
+# USB 带宽提示：四台 640x480@15 通常需要多个 USB3 控制器/供电 HUB；
+# 若掉流，先把 fps 降到 10 或分辨率降到 480x360。
+
+map:
+  resolution: 0.05
+  map_length: 12.0
+  mahalanobis_thresh: 2.5
+  min_valid_distance: 0.2
+  max_height_range: 2.0
+  max_ray_length: 8.0
+
+sources:
+  cam_front:
+    sensor_type: depth_camera
+    noise_coefficient: 0.002
+    min_range: 0.2
+    max_range: 6.0
+  cam_back:
+    sensor_type: depth_camera
+    noise_coefficient: 0.002
+    min_range: 0.2
+    max_range: 6.0
+  cam_left:
+    sensor_type: depth_camera
+    noise_coefficient: 0.002
+    min_range: 0.2
+    max_range: 6.0
+  cam_right:
+    sensor_type: depth_camera
+    noise_coefficient: 0.002
+    min_range: 0.2
+    max_range: 6.0
+
+cameras:
+  front:
+    serial: REPLACE_FRONT_SERIAL
+    source: cam_front
+    xyz: [0.25, 0.0, 0.65]
+    roll_deg: 0.0
+    pitch_deg: 20.0       # 向下 20°
+    yaw_deg: 0.0
+    width: 640
+    height: 480
+    fps: 15
+  back:
+    serial: REPLACE_BACK_SERIAL
+    source: cam_back
+    xyz: [-0.25, 0.0, 0.65]
+    roll_deg: 0.0
+    pitch_deg: 20.0
+    yaw_deg: 180.0
+    width: 640
+    height: 480
+    fps: 15
+  left:
+    serial: REPLACE_LEFT_SERIAL
+    source: cam_left
+    xyz: [0.0, 0.25, 0.65]
+    roll_deg: 0.0
+    pitch_deg: 20.0
+    yaw_deg: 90.0
+    width: 640
+    height: 480
+    fps: 15
+  right:
+    serial: REPLACE_RIGHT_SERIAL
+    source: cam_right
+    xyz: [0.0, -0.25, 0.65]
+    roll_deg: 0.0
+    pitch_deg: 20.0
+    yaw_deg: -90.0
+    width: 640
+    height: 480
+    fps: 15
+
+plugins:
+  min_filter:
+    enable: true
+    layer_name: min_filter
+    fill_nan: false
+    is_height_layer: true
+    extra_params:
+      dilation_size: 2
+      iteration_n: 5
+  smooth_filter:
+    enable: true
+    layer_name: smooth
+    fill_nan: false
+    is_height_layer: true
+    extra_params:
+      input_layer_name: min_filter
+  geo_slope:
+    enable: true
+    layer_name: slope
+    fill_nan: false
+    is_height_layer: false
+    extra_params:
+      input_layer_name: smooth
+  geo_traversability:
+    enable: true
+    layer_name: traversability_geo
+    fill_nan: false
+    is_height_layer: false
+    extra_params:
+      input_layer_name: smooth
+      slope_thresh: 0.5
+      roughness_thresh: 0.05
+      roughness_window: 5
