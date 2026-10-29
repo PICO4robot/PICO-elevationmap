@@ -1,36 +1,68 @@
-# Manually triggered only, matching PICO-rl / PICO-robot / PICO-dataset. The repo
-# is in early scaffold phases; trigger from the Actions tab (`Run workflow`) once
-# a change is worth gating.
+# Push/PR gate for the Python package. Only Python 3.12 is tested; 3.10/3.11
+# stay in the metadata range for upstream compatibility but are not supported
+# until a CI matrix exists (see docs/open-source-readiness.md).
 name: CI
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
 
 # Cancel in-progress runs for the same branch/PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  # Phase 0 scaffold gate: install, lint, smoke-test. No GPU packages yet, so no
-  # sibling checkouts, PICO_READ_PAT, or osmesa needed.
-  scaffold:
+  test:
+    name: test (Python 3.12)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
+          enable-cache: true
 
-      - name: Install uv
-        run: pip install uv
+      - name: Check lockfile is up to date
+        run: uv lock --check
 
-      - name: Install dependencies
-        run: uv sync
+      - name: Install dependencies from lockfile
+        run: uv sync --frozen
 
       - name: Ruff check
         run: uv run ruff check .
 
       - name: Pytest
-        run: uv run pytest -q
+        run: env -u PYTHONPATH uv run pytest -q
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Wheel install smoke test
+        run: |
+          SMOKE_DIR="$(mktemp -d)"
+          uv venv --python 3.12 "$SMOKE_DIR/venv"
+          # --no-deps: this smoke test checks the wheel payload and CLI entry point;
+          # runtime dependencies are covered by uv sync above.
+          uv pip install --python "$SMOKE_DIR/venv/bin/python" --no-deps "$GITHUB_WORKSPACE"/dist/*.whl
+          # Run outside the checkout so the source tree cannot shadow the installed
+          # top-level `scripts` package.
+          cd "$SMOKE_DIR"
+          "$SMOKE_DIR/venv/bin/pico-elevationmap" --help
+          "$SMOKE_DIR/venv/bin/python" - <<'PY'
+          from importlib.resources import files
+          import scripts.tools
+
+          assert "site-packages" in scripts.tools.__file__, scripts.tools.__file__
+          path = files("scripts.tools").joinpath("configs", "run_sim.yaml")
+          assert path.is_file(), path
+          print(f"bundled config: {path}")
+          PY
+
+      - name: Check package metadata
+        run: uvx twine check dist/*

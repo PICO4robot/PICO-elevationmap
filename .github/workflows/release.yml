@@ -1,0 +1,51 @@
+# Tag-triggered release: build, verify and attach artifacts to a GitHub Release.
+# This workflow does NOT publish to PyPI and does NOT choose or change a license.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release (Python 3.12)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Check lockfile is up to date
+        run: uv lock --check
+
+      - name: Install dependencies from lockfile
+        run: uv sync --frozen
+
+      - name: Pytest
+        run: env -u PYTHONPATH uv run pytest -q
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Check package metadata
+        run: uvx twine check dist/*
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --title "PICO-elevationmap ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag
