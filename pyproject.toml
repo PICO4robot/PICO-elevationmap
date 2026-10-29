@@ -1,13 +1,36 @@
 # src/pico_elevationmap/ — PICO 高程建图框架
-# ROS-free 核心 + cupy（GPU 实时）/ torch（批量，RL observation）双后端；
-# 包装 elevation_mapping_cupy_core。设计方案见 design/framework 分支 docs/design.md。
+# ROS-free 核心 + cupy（GPU 实时）后端；torch 批量后端暂缓（Phase 3）；
+# 包装 elevation_mapping_cupy_core。设计文档见 docs/design.md（历史设计稿）。
 
 [project]
 name = "pico-elevationmap"
 version = "0.4.0"
-description = "PICO elevation mapping: ROS-free core, cupy GPU / torch batch dual backends"
+description = "PICO elevation mapping: ROS-free core with a CUDA/cupy backend"
+readme = "README.md"
+# CI 只测 Python 3.12；3.10/3.11 暂时保留在元数据范围内以兼容上游依赖，
+# 但在 CI matrix 出现前不作为受支持版本（见 docs/open-source-readiness.md）。
 requires-python = ">=3.10,<3.13"
-license = { text = "Proprietary" }
+license = { file = "LICENSE" }
+authors = [{ name = "PICO4robot contributors" }]
+keywords = [
+  "elevation-mapping",
+  "robotics",
+  "cuda",
+  "cupy",
+  "ros2",
+  "quadruped",
+  "humanoid",
+]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+  "Environment :: GPU :: NVIDIA CUDA :: 12",
+]
 dependencies = [
   "elevation-mapping-cupy-core",
   "cupy-cuda12x",
@@ -27,6 +50,13 @@ cuda = ["cuda-toolkit[cudart,nvrtc]==12.*"]
 # RealSense D435i 等深度相机直连（scripts/tools/realsense_live.py）。
 realsense = ["pyrealsense2>=2.55,<3"]
 
+[project.urls]
+Homepage = "https://github.com/PICO4robot/PICO-elevationmap"
+Documentation = "https://github.com/PICO4robot/PICO-elevationmap/blob/main/docs/README.md"
+Repository = "https://github.com/PICO4robot/PICO-elevationmap"
+Issues = "https://github.com/PICO4robot/PICO-elevationmap/issues"
+Changelog = "https://github.com/PICO4robot/PICO-elevationmap/blob/main/CHANGELOG.md"
+
 [project.scripts]
 pico-elevationmap = "scripts.cli:main"
 pico-elevationmap-ros = "pico_elevationmap_ros.node:main"
@@ -38,6 +68,13 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src", "."]
 include = ["pico_elevationmap*", "pico_elevationmap_ros*", "scripts*"]
+
+[tool.setuptools.package-data]
+pico_elevationmap = ["py.typed"]
+"scripts.tools" = ["configs/*.yaml"]
+
+[tool.setuptools.data-files]
+"share/pico-elevationmap" = ["THIRD_PARTY_NOTICES.md", "CHANGELOG.md"]
 
 [tool.uv]
 required-environments = [
