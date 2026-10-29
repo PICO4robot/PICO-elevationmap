@@ -5,9 +5,8 @@ source of truth for command → entry module, lazy-imported via ``importlib`` so
 heavy deps (cupy / torch / ROS bridges) only load for the chosen command. Entry
 points stay directly runnable, e.g. ``python -m scripts.cli run ...``.
 
-Phase 1: ``run`` resolves to the real ``scripts/pipeline/run.py`` (synthetic-scene
-live mapping demo); the remaining commands (replay / bench / export) still hit the
-stub fallback below — the lazy-import dispatch is shared by both paths.
+`run`, `replay` and `export` resolve to their real pipeline modules; `bench`
+remains a Phase 3 stub and exits non-zero until a bench pipeline exists.
 """
 
 from __future__ import annotations
@@ -22,6 +21,10 @@ _COMMANDS: dict[str, tuple[str, str, str]] = {
     "bench": ("scripts.pipeline.bench", "Benchmark fusion / plugin / backend throughput", "Phase 3"),
     "export": ("scripts.pipeline.export", "Export built maps to file (PICO-dataset formats)", "Phase 2"),
 }
+
+# 明确标记尚无实现模块的命令；不依赖 import 失败来判断，避免把安装损坏
+# 误报成 "not implemented"。
+_NOT_IMPLEMENTED: dict[str, str] = {"bench": "Phase 3"}
 
 
 def _print_usage() -> None:
@@ -43,6 +46,10 @@ def main() -> None:
         print(f"pico-elevationmap: unknown command '{cmd}' (see `pico-elevationmap --help`)", file=sys.stderr)
         sys.exit(2)
 
+    if cmd in _NOT_IMPLEMENTED:
+        print(f"pico-elevationmap {cmd}: not implemented ({_NOT_IMPLEMENTED[cmd]})", file=sys.stderr)
+        sys.exit(1)
+
     module_path, _, phase = _COMMANDS[cmd]
     sys.argv = [f"pico-elevationmap {cmd}", *sys.argv[2:]]
     try:
@@ -50,8 +57,8 @@ def main() -> None:
     except ModuleNotFoundError as exc:
         if exc.name is None or not module_path.startswith(exc.name):
             raise  # missing dep inside an existing module — surface the real error
-        print(f"pico-elevationmap {cmd}: not implemented yet ({phase})")
-        sys.exit(0)
+        print(f"pico-elevationmap {cmd}: not implemented ({phase})", file=sys.stderr)
+        sys.exit(1)
     module.main()
 
 

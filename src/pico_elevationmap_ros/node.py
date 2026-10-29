@@ -1,15 +1,17 @@
 """ElevationMappingNode：rclpy 节点，把 ElevationMapper 接入 ROS2（Phase 4）。
 
-ROS import 只存在于本文件（grid_map_msgs 例外：仅在真实环境调用的
-_to_ros_gridmap() 与 _grid_publisher() 内懒加载，以便在没有 grid-map 包的
-机器上也能用本节点做纯点云融合）。核心包保持零 ROS 依赖。
+ROS import 只存在于本文件，且为 import-safe 的条件导入：没有 ROS 时模块仍可
+import（`--help` 可用），实例化节点时给出可操作错误。grid_map_msgs 例外：仅在
+真实环境调用的 _to_ros_gridmap() 与 _grid_publisher() 内懒加载，以便在没有
+grid-map 包的机器上也能用本节点做纯点云融合。核心包保持零 ROS 依赖。
 
 运行方式（真实 ROS2 环境，先 source /opt/ros/<distro>/setup.bash）：
 
-    # ament/控制台脚本均可（本 wheel 安装了 pico-elevationmap-ros 入口）
     pico-elevationmap-ros --config /abs/path/config.yaml
-    # 或把 config 作为 ROS 参数：
-    ros2 run pico_elevationmap_ros mapping_node --ros-args -p config:=/abs/path/config.yaml
+    pico-elevationmap-ros --config=/abs/path/config.yaml
+
+本仓库暂无 ament package.xml，因此不提供 `ros2 run pico_elevationmap_ros ...`
+入口；请使用 wheel 安装的 console script。`--help` 在未 source ROS 的环境也可用。
 
 config YAML = 核心四段（map/sources/plugins/sim）+ ros 段（见
 pico_elevationmap_ros.config.RosConfig 模块 docstring）。
@@ -27,24 +29,59 @@ mapper 经依赖注入传入 Mock（node 本体不 import GPU 栈）。
 
 from __future__ import annotations
 
+import argparse
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import rclpy
-from geometry_msgs.msg import PoseWithCovarianceStamped
-from nav_msgs.msg import Odometry
-from rclpy.node import Node
-from sensor_msgs.msg import PointCloud2
-from std_srvs.srv import Trigger
 
 from pico_elevationmap.core import io
 from pico_elevationmap.core.pose_buffer import StampOutOfRangeError
 from pico_elevationmap_ros import messages
 from pico_elevationmap_ros.config import RosConfig
 
-_POSE_MSG_TYPES = {"odometry": Odometry, "pose_cov": PoseWithCovarianceStamped}
+# ROS 2 Python 包是可选运行时依赖。条件导入保证没有 ROS 时模块本身仍可 import
+# （console script 的 --help 可用），实例化节点时再由 _require_ros() 给出明确错误。
+_ROS_IMPORT_ERROR: ImportError | None = None
+try:
+    import rclpy
+    from geometry_msgs.msg import PoseWithCovarianceStamped
+    from nav_msgs.msg import Odometry
+    from rclpy.node import Node
+    from sensor_msgs.msg import PointCloud2
+    from std_srvs.srv import Trigger
+except ImportError as exc:
+    _ROS_IMPORT_ERROR = exc
+    rclpy = None  # type: ignore[assignment]
+    Node = object  # type: ignore[misc,assignment]
+    PoseWithCovarianceStamped = Odometry = PointCloud2 = Trigger = None  # type: ignore[assignment]
+
+_ROS_REQUIREMENTS = (
+    "rclpy and the ROS message packages (geometry_msgs, nav_msgs, sensor_msgs, std_srvs)"
+)
+
+
+def _ros_unavailable_message() -> str:
+    """面向用户的 ROS 依赖缺失提示（console script 与节点构造共用）。"""
+    return (
+        f"pico-elevationmap-ros requires {_ROS_REQUIREMENTS}. Source a ROS 2 "
+        "installation (for example `source /opt/ros/jazzy/setup.bash`) and run from a "
+        "ROS-visible virtualenv (`uv venv --system-site-packages .venv-ros`); see "
+        "docs/development.md section 7. The core library and CPU CLI work without ROS."
+    )
+
+
+def _require_ros() -> None:
+    """ROS 不可用时抛出可操作错误；可用时直接返回。"""
+    if _ROS_IMPORT_ERROR is not None:
+        raise RuntimeError(_ros_unavailable_message()) from _ROS_IMPORT_ERROR
+
+
+def _pose_msg_types() -> dict[str, Any]:
+    """位姿消息类型表（仅在 ROS 可用或测试桩安装后调用）。"""
+    return {"odometry": Odometry, "pose_cov": PoseWithCovarianceStamped}
 
 
 class ElevationMappingNode(Node):
@@ -60,6 +97,7 @@ class ElevationMappingNode(Node):
         """config_path 从 YAML 加载（真实运行）；config= 直接注入已解析配置
         （测试与自定义装配）；mapper= 注入 ElevationMapper 实例/Mock
         （缺省在内部懒加载真实 mapper —— 该路径需要 GPU）。"""
+        _require_ros()
         super().__init__("elevation_mapping")
         if config is None:
             from pico_elevationmap.core.mapper import MapperConfig
@@ -82,7 +120,7 @@ class ElevationMappingNode(Node):
         self._grid_warned = False
 
         self.create_subscription(
-            _POSE_MSG_TYPES[self._ros.pose_type], self._ros.pose_topic, self._on_pose, 10
+            _pose_msg_types()[self._ros.pose_type], self._ros.pose_topic, self._on_pose, 10
         )
         self._cloud_subscriptions = {
             source: self.create_subscription(PointCloud2, topic, self._make_cloud_cb(source), 10)
@@ -220,14 +258,36 @@ def _to_ros_gridmap(grid: messages.GridMessage) -> Any:
     return msg
 
 
-def main() -> None:
+def _build_parser() -> argparse.ArgumentParser:
+    """console script 参数解析器（模块级，便于无 ROS 环境单测）。"""
+    parser = argparse.ArgumentParser(
+        prog="pico-elevationmap-ros",
+        description="ROS 2 bridge: PointCloud2 + pose -> ElevationMapper -> GridMap.",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        required=True,
+        help="YAML config (map / sources / plugins / sim / ros sections); "
+        "both `--config path` and `--config=path` are accepted",
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> None:
     """控制台脚本入口：pico-elevationmap-ros --config <yaml>（需 ROS2 环境）。"""
-    import sys
+    args = _build_parser().parse_args(argv)
+    if _ROS_IMPORT_ERROR is not None:
+        raise SystemExit(f"pico-elevationmap-ros: {_ros_unavailable_message()}")
 
     rclpy.init()
+    node = None
     try:
-        config_arg = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--config")), None)
-        node = ElevationMappingNode(config_arg)
+        node = ElevationMappingNode(config_path=str(args.config))
         rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     finally:
+        if node is not None:
+            node.destroy_node()
         rclpy.shutdown()

@@ -70,8 +70,15 @@ class PointCloudFrame:
 # ── 帧序列 npz ────────────────────────────────────────────────────────────────
 
 
+def _ensure_parent(path: str | Path) -> Path:
+    """确保输出文件的父目录存在（``maps/`` 等目录不再需要调用方预建）。"""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    return target
+
+
 def save_frames(path: str | Path, frames: Sequence[PointCloudFrame]) -> None:
-    """把帧序列写成单个 npz（布局见模块 docstring）。"""
+    """把帧序列写成单个 npz（布局见模块 docstring）；父目录自动创建。"""
     if not frames:
         raise ValueError("no frames to save")
     points = np.concatenate([f.points for f in frames], axis=0)
@@ -82,7 +89,7 @@ def save_frames(path: str | Path, frames: Sequence[PointCloudFrame]) -> None:
         if f.pose is not None:
             poses[i] = f.pose
     sources = np.asarray([f.source for f in frames], dtype=str)
-    np.savez(path, points=points, offsets=offsets, stamps=stamps, poses=poses, sources=sources)
+    np.savez(_ensure_parent(path), points=points, offsets=offsets, stamps=stamps, poses=poses, sources=sources)
 
 
 def load_frames(path: str | Path) -> list[PointCloudFrame]:
@@ -125,11 +132,11 @@ _MAP_META_KEYS = ("resolution", "center")
 
 
 def save_map(path: str | Path, layers: dict[str, np.ndarray], resolution: float, center: Sequence[float]) -> None:
-    """写出地图图层 + 元数据；消费方见 scripts/pipeline/export.py。"""
+    """写出地图图层 + 元数据；父目录自动创建。消费方见 scripts/pipeline/export.py。"""
     payload = {name: np.asarray(arr, dtype=np.float32) for name, arr in layers.items()}
     payload["resolution"] = np.float32(resolution)
     payload["center"] = np.asarray(center, dtype=np.float32)
-    np.savez(path, **payload)
+    np.savez(_ensure_parent(path), **payload)
 
 
 def load_map(path: str | Path) -> tuple[dict[str, np.ndarray], dict[str, Any]]:

@@ -108,3 +108,20 @@ def test_grid_coordinates_convention() -> None:
     # exported[row]: x = cx + (n/2 - 1 - row)·res → {0, -1}
     np.testing.assert_allclose(X[:, 0], [0.0, -1.0])
     np.testing.assert_allclose(Y[0, :], [0.0, -1.0])
+
+
+def test_save_map_creates_parent_directories(tmp_path) -> None:
+    path = tmp_path / "new" / "nested" / "map.npz"
+    layers = {"elevation": np.zeros((2, 2), dtype=np.float32)}
+    io.save_map(path, layers, resolution=0.1, center=[0.0, 0.0, 0.0])
+    assert path.is_file()
+    loaded, meta = io.load_map(path)
+    assert set(loaded) == {"elevation"}
+    assert meta["resolution"] == pytest.approx(0.1)
+
+
+def test_save_frames_creates_parent_directories(tmp_path) -> None:
+    path = tmp_path / "new" / "nested" / "frames.npz"
+    io.save_frames(path, _frames())
+    assert path.is_file()
+    assert len(io.load_frames(path)) == 3

@@ -9,6 +9,7 @@ node.py 由 tests/ros_stubs.py 在 sys.modules 层打桩 rclpy/消息包，mappe
 from __future__ import annotations
 
 import importlib
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
@@ -69,6 +70,39 @@ def test_pointcloud2_missing_field_raises() -> None:
     msg.fields = [f for f in msg.fields if f.name != "z"]
     with pytest.raises(ValueError, match="missing fields"):
         messages.pointcloud2_to_array(msg)
+
+
+def test_livox_custom_msg_object_list() -> None:
+    msg = SimpleNamespace(
+        header=SimpleNamespace(stamp=SimpleNamespace(sec=3, nanosec=250_000_000), frame_id="livox_frame"),
+        points=[
+            SimpleNamespace(x=1.0, y=2.0, z=3.0),
+            SimpleNamespace(x=np.nan, y=0.0, z=0.0),
+            SimpleNamespace(x=4.0, y=5.0, z=6.0),
+        ],
+    )
+    arr, stamp, frame_id = messages.livox_custom_msg_to_array(msg)
+    assert arr.shape == (2, 3)
+    assert arr.dtype == np.float32
+    np.testing.assert_allclose(arr[0], [1.0, 2.0, 3.0])
+    assert stamp == pytest.approx(3.25)
+    assert frame_id == "livox_frame"
+
+
+def test_livox_custom_msg_structured_array() -> None:
+    points = np.array(
+        [(1.0, 2.0, 3.0, 7), (4.0, 5.0, 6.0, 8)],
+        dtype=[("x", "<f4"), ("y", "<f4"), ("z", "<f4"), ("reflectivity", "u1")],
+    )
+    msg = SimpleNamespace(
+        header=SimpleNamespace(stamp=SimpleNamespace(sec=4, nanosec=0), frame_id="livox_frame"),
+        points=points,
+    )
+    arr, stamp, frame_id = messages.livox_custom_msg_to_array(msg)
+    assert arr.shape == (2, 3)
+    np.testing.assert_allclose(arr[1], [4.0, 5.0, 6.0])
+    assert stamp == pytest.approx(4.0)
+    assert frame_id == "livox_frame"
 
 
 # ── 消息转换：Odometry / PoseWithCovarianceStamped → SE3 + 噪声 ────────────────
@@ -147,6 +181,21 @@ def test_ros_config_validation() -> None:
         RosConfig.from_dict({"tf_tree": True}, sources=sources)
     with pytest.raises(ValueError, match="at least one"):
         RosConfig.from_dict({}, sources=sources)
+
+
+def test_ros_camera_lidar_example_config_parses() -> None:
+    """示例配置必须同时通过 MapperConfig 与 RosConfig 校验。"""
+    pytest.importorskip("cupy", reason="cupy not installed")
+    from pico_elevationmap.core.mapper import MapperConfig
+
+    config_path = Path(__file__).resolve().parents[1] / "scripts" / "tools" / "configs" / "ros_camera_lidar.yaml"
+    cfg = MapperConfig.from_yaml(config_path)
+    ros = RosConfig.from_dict(cfg.ros, sources=cfg.sources)
+
+    assert set(ros.point_topics) == set(cfg.sources) == {"depth", "lidar"}
+    assert ros.pose_topic == "/odom"
+    assert ros.pose_type == "odometry"
+    assert "traversability_geo" in ros.publish_layers
 
 
 # ── 节点接线（打桩 rclpy，注入 Mock mapper）─────────────────────────────────────
@@ -231,6 +280,32 @@ def test_node_wiring_and_callbacks(node_mod, tmp_path) -> None:
     layers, meta = io.load_map(tmp_path / "save.npz")
     assert set(layers) == {"elevation", "slope"}
     assert meta["resolution"] == pytest.approx(0.05)
+
+
+def test_ros_cli_parses_config_both_forms(node_mod) -> None:
+    parser = node_mod._build_parser()
+    assert parser.parse_args(["--config", "/tmp/a.yaml"]).config == Path("/tmp/a.yaml")
+    assert parser.parse_args(["--config=/tmp/b.yaml"]).config == Path("/tmp/b.yaml")
+
+
+@pytest.mark.parametrize("argv", [["--config", "/tmp/a.yaml"], ["--config=/tmp/a.yaml"]])
+def test_ros_cli_main_wires_config_and_spins(node_mod, monkeypatch, argv) -> None:
+    calls: dict[str, object] = {}
+
+    class FakeNode:
+        def __init__(self, config_path=None):
+            calls["config_path"] = config_path
+
+        def destroy_node(self):
+            calls["destroyed"] = True
+
+    monkeypatch.setattr(node_mod, "ElevationMappingNode", FakeNode)
+    monkeypatch.setattr(node_mod.rclpy, "init", lambda: calls.setdefault("init", True))
+    monkeypatch.setattr(node_mod.rclpy, "spin", lambda node: calls.setdefault("spin", True))
+    monkeypatch.setattr(node_mod.rclpy, "shutdown", lambda: calls.setdefault("shutdown", True))
+    node_mod.main(argv)
+    assert calls["config_path"] == "/tmp/a.yaml"
+    assert calls["init"] and calls["spin"] and calls["shutdown"] and calls["destroyed"]
 
 
 def test_node_missing_config_raises(node_mod) -> None:

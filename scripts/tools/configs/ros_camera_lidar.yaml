@@ -1,0 +1,72 @@
+# ROS2 桥接示例：D435i 深度相机 + RoboSense Airy LiDAR 双源。
+# 用法（需先 source ROS2，并使用带系统 ROS 可见性的 venv）：
+#   UV_PROJECT_ENVIRONMENT=.venv-ros uv run pico-elevationmap-ros \
+#       --config scripts/tools/configs/ros_camera_lidar.yaml
+# 说明：ros.point_topics 的键必须与 sources 段中的源名一致；pose_type 可选
+# odometry | pose_cov，pose_topic 必须是绝对 topic 名。
+map:
+  resolution: 0.05
+  map_length: 12.0
+  mahalanobis_thresh: 2.5
+  min_valid_distance: 0.2
+  max_height_range: 2.0
+  max_ray_length: 8.0
+
+sources:
+  depth:
+    sensor_type: depth_camera
+    noise_coefficient: 0.002
+    min_range: 0.15
+    max_range: 6.0
+  lidar:
+    sensor_type: laser
+    noise_coefficient: 0.005
+    min_range: 0.5
+    max_range: 20.0
+
+plugins:
+  min_filter:
+    enable: true
+    layer_name: min_filter
+    fill_nan: false
+    is_height_layer: true
+    extra_params:
+      dilation_size: 2
+      iteration_n: 5
+  smooth_filter:
+    enable: true
+    layer_name: smooth
+    fill_nan: false
+    is_height_layer: true
+    extra_params:
+      input_layer_name: min_filter
+  geo_slope:
+    enable: true
+    layer_name: slope
+    fill_nan: false
+    is_height_layer: false
+    extra_params:
+      input_layer_name: smooth
+  geo_traversability:
+    enable: true
+    layer_name: traversability_geo
+    fill_nan: false
+    is_height_layer: false
+    extra_params:
+      input_layer_name: smooth
+      slope_thresh: 0.5
+      roughness_thresh: 0.05
+      roughness_window: 5
+
+ros:
+  map_frame: map
+  point_topics:
+    depth: /camera/depth/color/points
+    lidar: /rslidar_points
+  pose_topic: /odom
+  pose_type: odometry
+  publish_fps: 5.0
+  publish_layers:
+    - elevation
+    - traversability_geo
+  save_path: maps/ros_camera_lidar_map.npz

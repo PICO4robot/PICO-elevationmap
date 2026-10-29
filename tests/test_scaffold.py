@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import importlib
 import importlib.metadata
+from importlib import resources
 
 import pytest
 
 import scripts.cli as cli
 
 SUBCOMMANDS = ("run", "replay", "bench", "export")
-# Phase 2: run / replay / export 已实现；bench 待 Phase 3（torch 后端）仍是 stub
+# Phase 2: run / replay / export 已实现；bench 待 Phase 3（torch 后端）仍无实现模块
 STUB_SUBCOMMANDS = ("bench",)
 PACKAGES = (
     "pico_elevationmap",
@@ -21,12 +22,20 @@ PACKAGES = (
     "pico_elevationmap.sensors",
     "scripts",
     "scripts.pipeline",
+    "scripts.tools",
 )
 
 
 def test_packages_importable() -> None:
     for name in PACKAGES:
         importlib.import_module(name)
+
+
+def test_bundled_configs_discoverable() -> None:
+    config_dir = resources.files("scripts.tools").joinpath("configs")
+    assert config_dir.is_dir()
+    names = {entry.name for entry in config_dir.iterdir() if entry.name.endswith(".yaml")}
+    assert {"run_sim.yaml", "ros_camera_lidar.yaml"} <= names
 
 
 def test_cli_lists_subcommands(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -40,16 +49,16 @@ def test_cli_lists_subcommands(monkeypatch: pytest.MonkeyPatch, capsys: pytest.C
 
 
 @pytest.mark.parametrize("cmd", STUB_SUBCOMMANDS)
-def test_cli_stubs_exit_zero(
+def test_cli_stubs_exit_nonzero(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], cmd: str
 ) -> None:
     monkeypatch.setattr("sys.argv", ["pico-elevationmap", cmd, "--config", "dummy.yaml"])
     with pytest.raises(SystemExit) as exc_info:
         cli.main()
-    assert exc_info.value.code == 0
-    out = capsys.readouterr().out
-    assert "not implemented yet" in out
-    assert "Phase" in out
+    assert exc_info.value.code == 1
+    err = capsys.readouterr().err
+    assert "not implemented" in err
+    assert "Phase 3" in err
 
 
 def test_cli_run_help_exit_zero(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:

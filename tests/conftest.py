@@ -1,7 +1,7 @@
 """共享 pytest fixtures：合成数据 + GPU/ROS 可用性自动 skip。
 
 家族约定：测试不依赖外部资产，点云 / 地图数据全部现场合成（确定性 seed）。
-GPU 用例使用 ``gpu`` fixture 或 ``requires_gpu`` 标记，cupy / CUDA 不可用时
+GPU 用例使用 ``gpu`` fixture 或 ``requires_gpu`` skipif 条件，cupy / CUDA 不可用时
 自动 skip（Phase 1/2 的 GPU 用例在本机 4090 上实际运行）。
 ROS 用例使用 ``requires_ros`` 标记，真实 ROS2 环境（rclpy 可导入 + ros2 CLI）
 不可用时自动 skip（Phase 4 桥接集成测试用）；桥接逻辑本身由 sys.modules
