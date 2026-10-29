@@ -188,7 +188,7 @@ Y = (v - cy) * Z / fy
 
 ### 4.6 原型验证（2026-10-28）
 
-- `scripts/tools/realsense_live.py` 已用 D435i 直连验证 depth → point cloud →
+- `src/pico_elevationmap/live/realsense_live.py` 已用 D435i 直连验证 depth → point cloud →
   `ElevationMapper` 的完整链路；
 - 实现方式：`pyrealsense2` 取 640×480@30 深度图，按内参反投影；在光学系下半
   部分（y > 0）用 RANSAC 估计主平面并排除墙面，构造 Z-up 地图系，不经过 ROS；

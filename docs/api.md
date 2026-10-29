@@ -67,7 +67,7 @@ print(layers["elevation"].shape, stats.coverage, stats.center)
 ```python
 from pico_elevationmap.core.mapper import MapperConfig
 
-cfg = MapperConfig.from_yaml("scripts/tools/configs/run_sim.yaml")
+cfg = MapperConfig.from_yaml("src/pico_elevationmap/configs/run_sim.yaml")
 print(cfg.resolution, sorted(cfg.sources), sorted(cfg.plugins))
 ```
 

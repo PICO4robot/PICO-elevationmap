@@ -19,11 +19,12 @@ NVIDIA GPU with CUDA 12.x headers; CPU tests and `--help` paths do not.
 ```bash
 git clone https://github.com/PICO4robot/PICO-elevationmap.git
 cd PICO-elevationmap
-uv sync
+bash scripts/setup_env.sh
 ```
 
 See [docs/development.md](docs/development.md) for CUDA headers, RealSense and
-optional ROS2 setup.
+optional ROS2 setup. `setup_env.sh` verifies NVRTC, RealSense and pytest; add
+`--ros` for a ROS-visible `.venv-ros`.
 
 ## Tests and lint
 
@@ -32,6 +33,8 @@ Run these before opening a pull request:
 ```bash
 env -u PYTHONPATH uv run pytest -q
 uv run ruff check .
+uv run ruff format --check .
+bash -n scripts/setup_env.sh
 ```
 
 GPU and ROS integration tests skip automatically when the corresponding hardware or

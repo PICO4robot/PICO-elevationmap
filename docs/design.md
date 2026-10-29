@@ -81,7 +81,7 @@
 4. 代码风格 **ruff**（line-length 120、双引号、select `E,W,F,I,UP`、target py310）；
    中英混写注释；`from __future__ import annotations`；
 5. **src layout** 多包结构（参照 PICO-rl：框架层 / 任务层 / 资产层单向依赖）；
-   `scripts/cli.py` 唯一 lazy-import CLI dispatcher；
+   `src/pico_elevationmap/cli.py` 唯一 lazy-import CLI dispatcher；
 6. pytest 测试，tests/ 镜像 src 布局，合成数据 fixture（无外部资产时自动 skip）；
 7. CI：单文件 `.github/workflows/ci.yml`，push/PR 触发，CPU lint / test / build；
    不依赖 GPU 或私有 sibling 检出；
@@ -167,12 +167,14 @@ PICO-elevationmap/
 │   │   ├── fusion/             # 融合策略注册表（bayesian / average / class_*，代理到 cupy_core）
 │   │   ├── plugins/            # 后处理插件链：YAML 配置 + 动态 import
 │   │   ├── backends/           # 后端抽象：cupy（GPU 实时）| torch（批量，RL 用）
-│   │   └── sensors/            # 每输入源一个噪声模型配置（YAML）
+│   │   ├── sensors/            # 每输入源一个噪声模型配置（YAML）
+│   │   ├── cli.py              # 唯一 lazy-import dispatcher
+│   │   ├── pipeline/           # run / replay / export（bench 待 Phase 3）
+│   │   ├── live/               # D435i 单相机 / 四相机直连 demo
+│   │   └── configs/            # 示例 YAML（package data）
 │   ├── pico_elevationmap_ros/  # 可选 ROS2 桥接（独立 extras）
 │   └── pico_elevationmap_sim/  # mjlab / MuJoCo 集成（Phase 3，未实现）
-├── scripts/                    # 包内 scripts：cli.py 唯一 lazy-import dispatcher
-│   ├── pipeline/               # run / replay / export（bench 待 Phase 3）
-│   └── tools/                  # 一次性工具 + configs/*.yaml
+├── scripts/setup_env.sh        # 一键环境安装
 ├── tests/                      # pytest，镜像 src 布局，合成数据 fixture
 └── .github/workflows/ci.yml    # push/PR CPU gate（lint + test + build）
 ```

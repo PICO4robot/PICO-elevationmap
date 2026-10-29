@@ -10,6 +10,10 @@ The project is pre-1.0: minor releases may contain breaking changes.
 
 ### Added
 
+- `docs/en/`: English Quickstart, API and open-source readiness summaries.
+- `scripts/setup_env.sh`: one-click source environment setup (CUDA + RealSense
+  extras, NVRTC/RealSense verification, optional `.venv-ros`, pytest) with a
+  per-command SSH fallback when GitHub HTTPS is unreachable.
 - `docs/open-source-readiness.md`: release checklist, third-party MIT/BSD notice
   requirements, support matrix and known limitations.
 - `LICENSE` (MIT) and a `License :: OSI Approved :: MIT License` classifier; the
@@ -20,9 +24,13 @@ The project is pre-1.0: minor releases may contain breaking changes.
   GitHub issue forms and a pull-request template.
 - `docs/assets/` screenshots for the D435i and D435i + LiDAR voxel views.
 - `THIRD_PARTY_NOTICES.md` with the upstream MIT/BSD notices.
-- `scripts/tools/configs/ros_camera_lidar.yaml`: runnable camera + LiDAR ROS bridge
+- `src/pico_elevationmap/configs/ros_camera_lidar.yaml`: runnable camera + LiDAR ROS bridge
   example, with a parsing test for `MapperConfig` + `RosConfig`.
-- Bundled `scripts.tools/configs/*.yaml` package data, a config-discovery test and a
+- `src/pico_elevationmap/live/quad_camera_live.py`,
+  `src/pico_elevationmap/configs/quad_camera.yaml` and
+  `pico_elevationmap.sensors.camera_rig`: four-camera D435i rig with per-camera serials
+  and optical-to-base extrinsics; single-camera subset tested.
+- Bundled `pico_elevationmap.configs` package data, a config-discovery test and a
   CI wheel-install smoke check.
 - Tag-triggered `.github/workflows/release.yml` for GitHub Releases (no PyPI publish).
 - Unit tests for ROS CLI argument parsing and for save-parent directory creation.
@@ -37,16 +45,27 @@ The project is pre-1.0: minor releases may contain breaking changes.
   `--config=path`; README/development commands use `uv run pico-elevationmap-ros`.
 - `io.save_map` and `io.save_frames` create missing parent directories, so the
   README quickstart no longer requires `mkdir -p maps`.
-- CI now runs on push/PR with `uv lock --check`, `uv sync --frozen`, ruff, pytest,
-  `uv build`, a wheel-install smoke check and `twine check`; Python 3.12 is documented.
+- CI now runs on push/PR with `uv lock --check`, `uv sync --frozen`, ruff check,
+  ruff format check, `bash -n` for the setup script, pytest, `uv build`, a wheel-install
+  smoke check and `twine check`; Python 3.12 is documented.
+- `uv.lock` was regenerated against PyPI; the Aliyun mirror index was removed so clean
+  checkouts resolve from the default index.
+- The top-level `scripts` package was moved into `pico_elevationmap` (`cli.py`,
+  `pipeline/`, `live/`, `configs/`), removing the generic top-level package name from
+  the wheel; `scripts/setup_env.sh` remains a repo-level helper.
+- `launch/bringup.launch.py` now exposes `warmup` so short LiDAR captures can wait for
+  the driver to publish frames.
+- The README now documents the wheel's `--no-deps` install limitation and links the
+  English documentation summaries.
 - Package metadata now includes README, neutral authors, project URLs, keywords,
   classifiers and the MIT license; the description reflects the cupy-only backend.
 - README now states the support matrix, removes private/dead PICO links, uses absolute
   raw image URLs for PyPI rendering, and documents that `launch/` is repo-only.
 - `docs/design.md` is marked as a historical design document and its CI/license/torch
   claims are reconciled with the current release posture.
-- `docs/open-source-readiness.md` now tracks the Aliyun-locked lockfile, wheel config
-  packaging, `scripts` namespace collision, missing ROS example and unexecuted CI.
+- `docs/open-source-readiness.md` now tracks the PyPI-locked lockfile, wheel config
+  packaging, the resolved `scripts` namespace collision, missing ROS example and CI
+  status.
 
 ### Fixed
 

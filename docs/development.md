@@ -25,6 +25,32 @@ CUDA toolkit**。驱动 13.x 可以运行 CUDA 12.x 程序（向后兼容），�
 
 ## 2. 安装
 
+**一键安装（推荐）**
+
+```bash
+git clone https://github.com/PICO4robot/PICO-elevationmap.git
+cd PICO-elevationmap
+bash scripts/setup_env.sh
+```
+
+脚本从**源码**执行 `uv sync --frozen --extra cuda --extra realsense`，然后验证
+CuPy/NVRTC 与 RealSense SDK，最后跑 pytest。可选参数：
+
+| 参数 | 作用 |
+| --- | --- |
+| `--ros` | 额外创建 `.venv-ros`（`--system-site-packages`），供 §7 ROS2 桥接开发 |
+| `--no-cuda` / `--no-realsense` | 不装对应 extra（无 GPU 或无相机的主机） |
+| `--skip-tests` | 跳过 pytest，仅做导入与 GPU 检查 |
+| `--dry-run` | 只打印将执行的命令，不改动环境 |
+| `-h, --help` | 帮助 |
+
+GitHub HTTPS 不可达时，脚本会自动用**仅本命令生效**的 SSH URL rewrite 重试，
+不修改全局 `~/.gitconfig`。从源码安装是当前的主路径：wheel 的
+`elevation-mapping-cupy-core` 依赖仍指向 git 源，直接 `pip install` 需要
+`--no-deps`，见 [open-source-readiness.md](open-source-readiness.md)。
+
+**手动安装**
+
 ```bash
 git clone https://github.com/PICO4robot/PICO-elevationmap.git
 cd PICO-elevationmap
@@ -100,9 +126,9 @@ uv 缓存，后续 `uv run` 不再访问 GitHub。
 ## 5. 快速验证
 
 ```bash
-uv run pico-elevationmap run --config scripts/tools/configs/run_sim.yaml \
+uv run pico-elevationmap run --config src/pico_elevationmap/configs/run_sim.yaml \
     --save maps/map.npz --save-frames maps/frames.npz
-uv run pico-elevationmap replay --config scripts/tools/configs/run_sim.yaml \
+uv run pico-elevationmap replay --config src/pico_elevationmap/configs/run_sim.yaml \
     --input maps/frames.npz --save maps/replay_map.npz --export-ply maps/map.ply
 uv run pico-elevationmap export --input maps/replay_map.npz \
     --layers elevation --output maps/elevation.pgm
@@ -121,14 +147,14 @@ npz、PLY 与 PGM。RTX 4060 Laptop 实测约 **5 ms/step**（0.04 m 分辨率�
 uv sync --extra cuda --extra realsense
 
 # 实时 2D + 3D 体素；q / Esc 退出
-uv run python -m scripts.tools.realsense_live \
-    --config scripts/tools/configs/realsense_live.yaml \
+uv run python -m pico_elevationmap.live.realsense_live \
+    --config src/pico_elevationmap/configs/realsense_live.yaml \
     --view --voxel-view --frames 0 \
     --z-min -0.1 --z-max 1.0 --color-bands 12 --voxel-size 0.05
 
 # 或采 30 帧后保存
-uv run python -m scripts.tools.realsense_live \
-    --config scripts/tools/configs/realsense_live.yaml \
+uv run python -m pico_elevationmap.live.realsense_live \
+    --config src/pico_elevationmap/configs/realsense_live.yaml \
     --frames 30 --save maps/realsense_map.npz \
     --save-frames maps/realsense_frames.npz \
     --export-ply maps/realsense.ply --export-pgm maps/realsense.pgm
@@ -181,7 +207,7 @@ RoboSense 驱动用 ROS2 `rslidar_sdk`（`lidar_type: RSAIRY`，发布
 ```bash
 colcon build --packages-select rslidar_msg rslidar_sdk
 source install/setup.bash
-ros2 run rslidar_sdk rslidar_sdk_node --ros-args -p config_path:=/abs/path/scripts/tools/configs/airy_rslidar.yaml
+ros2 run rslidar_sdk rslidar_sdk_node --ros-args -p config_path:=/abs/path/src/pico_elevationmap/configs/airy_rslidar.yaml
 ```
 
 双源脚本需要能看到系统 ROS 包，单独建一个带 `--system-site-packages` 的 venv：
@@ -192,8 +218,8 @@ UV_PROJECT_ENVIRONMENT=.venv-ros uv sync --extra cuda --extra realsense
 
 source /opt/ros/jazzy/setup.bash
 source /path/to/rslidar_ws/install/setup.bash
-.venv-ros/bin/python -m scripts.tools.realsense_live \
-    --config scripts/tools/configs/realsense_lidar.yaml \
+.venv-ros/bin/python -m pico_elevationmap.live.realsense_live \
+    --config src/pico_elevationmap/configs/realsense_lidar.yaml \
     --lidar-topic /rslidar_points --frames 30 \
     --save maps/dual_map.npz --export-ply maps/dual.ply
 ```
@@ -214,15 +240,15 @@ z 估计会在旋转后重新计算。精确标定与硬件时间同步仍需补
 # Livox Mid-360（CustomMsg）
 ros2 launch ./launch/bringup.launch.py \
     lidar:=livox lidar_topic:=/livox/lidar lidar_msg_type:=custom \
-    config:=$PWD/scripts/tools/configs/livox_mid360.yaml
+    config:=$PWD/src/pico_elevationmap/configs/livox_mid360.yaml
 
 # Airy（PointCloud2）
 ros2 launch ./launch/bringup.launch.py \
     lidar:=airy lidar_topic:=/rslidar_points lidar_msg_type:=pointcloud2 \
-    config:=$PWD/scripts/tools/configs/realsense_lidar.yaml
+    config:=$PWD/src/pico_elevationmap/configs/realsense_lidar.yaml
 ```
 
-常用参数：`view`、`voxel_view`、`frames`、`lidar_roll/pitch/yaw`、
+常用参数：`view`、`voxel_view`、`frames`、`warmup`、`lidar_roll/pitch/yaw`、
 `lidar_offset`、`voxel_alpha`、`foxglove`、`save_map`、`voxel_save`、`view_save`。Livox 驱动需先
 build/source `livox_ros_driver2`；若驱动输出 PointCloud2，把
 `lidar_msg_type` 改成 `pointcloud2` 并使用对应 launch 文件。launch 只负责进程
@@ -232,8 +258,8 @@ build/source `livox_ros_driver2`；若驱动输出 PointCloud2，把
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-.venv-ros/bin/python -m scripts.tools.realsense_live \
-    --config scripts/tools/configs/realsense_lidar.yaml \
+.venv-ros/bin/python -m pico_elevationmap.live.realsense_live \
+    --config src/pico_elevationmap/configs/realsense_lidar.yaml \
     --lidar-topic /rslidar_points \
     --foxglove --view --voxel-view --frames 0
 ```
@@ -247,11 +273,31 @@ source /opt/ros/jazzy/setup.bash
 `ws://<host>:8765` 后在 3D 面板添加这两个 topic。`foxglove_bridge` 需要单独安装；
 它只做桥接，不改变建图逻辑。
 
+### 5.5 Four-camera D435i rig
+
+`quad_camera_live.py` 读取 `cameras:` 段，每台相机独立 serial + 外参：
+
+```bash
+uv run python -m pico_elevationmap.live.quad_camera_live --list
+uv run python -m pico_elevationmap.live.quad_camera_live \
+    --config src/pico_elevationmap/configs/quad_camera.yaml \
+    --view --voxel-view --frames 0
+```
+
+- `xyz` 是相机在 base 系的位置（x 前、y 左、z 上），`pitch_deg: 20` 表示向下；
+- 默认四路为 front/back/left/right，只验证一路时加 `--cameras front`；
+- 四路 640×480@15 需要多 USB3 控制器/供电 HUB；掉流时降低 `fps` 或分辨率；
+- 当前只在单台 D435i 上跑了单路 rig，四台同时工作仍需硬件验证；
+- 四路时间戳不在同一时钟域，脚本用主机单调时钟统一 stamp；移动平台仍需硬件
+  时间同步与逐相机外参标定。
+
 ## 6. 测试与 lint
 
 ```bash
 env -u PYTHONPATH uv run pytest -q          # 本机基线：全部通过，GPU/ROS 用例自动 skip（无 ROS）
 uv run ruff check .
+uv run ruff format --check .
+bash -n scripts/setup_env.sh
 ```
 
 - GPU 用例在 cupy / CUDA 不可用时自动 skip；CPU 用例始终可跑。
@@ -282,8 +328,8 @@ uv sync --extra ros
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-uv run pico-elevationmap-ros --config scripts/tools/configs/ros_camera_lidar.yaml
-uv run pico-elevationmap-ros --config=scripts/tools/configs/ros_camera_lidar.yaml
+uv run pico-elevationmap-ros --config src/pico_elevationmap/configs/ros_camera_lidar.yaml
+uv run pico-elevationmap-ros --config=src/pico_elevationmap/configs/ros_camera_lidar.yaml
 ```
 
 `--config path` 与 `--config=path` 两种写法都支持。`uv run pico-elevationmap-ros --help`
