@@ -13,9 +13,9 @@
 | [semantic-extension.md](semantic-extension.md) | 语义扩展（Phase 5 提案）：MEM 原理、三条语义注入路径、现状与改动清单、价值场景、排期建议 | v0.1 提案，待真机验证后立项 |
 | [concepts.md](concepts.md) | 概念辨析：BEV 与 elevation map 的关系与合流趋势 | v0.1 |
 
-根目录 [README.md](../README.md) 承担项目介绍与快速上手；开发环境搭建、CUDA
-headers、GitHub 访问与踩坑处理见 [development.md](development.md)；未完成事项见
-[TODO.md](../TODO.md)。
+根目录 README：[English](../README.md) / [简体中文](../README.zh-CN.md) 承担项目介绍与快速上手；
+开发环境搭建、CUDA headers、GitHub 访问与踩坑处理见 [development.md](development.md)；
+未完成事项见 [TODO.md](../TODO.md)。
 
 ## 文档语言
 

@@ -8,6 +8,12 @@ The project is pre-1.0: minor releases may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- `README.md` is now the concise English entry point and `README.zh-CN.md` the concise
+  Chinese entry point; detailed live-sensor, ROS2 launch and Foxglove instructions live
+  in `docs/development.md`.
+
 ### Changed
 
 - The 3D voxel map now uses a log-odds occupancy probability per voxel instead of
