@@ -228,7 +228,7 @@ source /path/to/rslidar_ws/install/setup.bash
 ```
 
 本机实测：Airy 约 8–10 Hz、6.5–7.1 万点/帧；30 个相机帧融合 15 个 LiDAR 帧，
-12 m 地图覆盖率 6.3%，3D 体素视图约 2.9 万格。当前用相机 stamp 统一对齐，
+12 m 地图覆盖率 6.6%，3D 概率体素视图约 2.4 万格。当前用相机 stamp 统一对齐，
 LiDAR 时间戳未参与位姿插值；外参用 `--lidar-roll` / `--lidar-pitch` /
 `--lidar-yaw` / `--lidar-offset` 手工微调。默认 LiDAR z 轴朝上；**倒装时加
 `--lidar-roll 180`（绕 x 翻转）或 `--lidar-pitch 180`（绕 y 翻转）**，自动地面

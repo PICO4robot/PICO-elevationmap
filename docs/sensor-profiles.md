@@ -205,8 +205,8 @@ Y = (v - cy) * Z / fy
   实测约 8–10 Hz、6.5–7.1 万点/帧；
 - 运行：`realsense_live.py --lidar-topic /rslidar_points`，使用
   `.venv-ros`（`--system-site-packages`）同时看到 rclpy 与项目依赖；
-- 结果：30 个相机帧融合了 15 个 LiDAR 帧，12 m 地图覆盖率 6.3%
-  （3634/57600 cells），3D 体素视图约 2.9 万格；相机建图均值约 4.6 ms/step
+- 结果：30 个相机帧融合了 15 个 LiDAR 帧，12 m 地图覆盖率 6.6%
+  （3774/57600 cells），3D 概率体素视图约 2.4 万格；相机建图均值约 4.5 ms/step
   （不含 ROS/LiDAR 接收与渲染）；
 - 限制：当前用相机 stamp 作为统一时间戳，未做 LiDAR/相机硬件时间同步；外参做了
   旋转后自动地面 z 对齐 + 手动 `--lidar-roll/--lidar-pitch/--lidar-yaw/--lidar-offset`

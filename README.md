@@ -69,7 +69,7 @@ Optional live paths (details in the docs above):
 - **Four-camera D435i**: see [§5.5](docs/development.md) and `quad_camera.yaml`
 - **ROS2 launch / Foxglove bridge**: see [§5.3 / §5.4](docs/development.md)
 
-![D435i live elevation, traversability and 3D voxel view](https://raw.githubusercontent.com/PICO4robot/PICO-elevationmap/main/docs/assets/realsense_window.png)
+![D435i live elevation, traversability and probability voxel view](https://raw.githubusercontent.com/PICO4robot/PICO-elevationmap/main/docs/assets/realsense_window.png)
 
 Prototype-quality output from a static D435i; not a calibrated deployment.
 

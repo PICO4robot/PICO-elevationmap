@@ -67,7 +67,7 @@ uv run pico-elevationmap export --input maps/replay_map.npz --layers elevation -
 - **四相机 D435i**：见 [§5.5](docs/development.md) 与 `quad_camera.yaml`
 - **ROS2 launch / Foxglove**：见 [§5.3 / §5.4](docs/development.md)
 
-![D435i 实时高程、traversability 与 3D 体素视图](https://raw.githubusercontent.com/PICO4robot/PICO-elevationmap/main/docs/assets/realsense_window.png)
+![D435i 实时高程、traversability 与概率体素视图](https://raw.githubusercontent.com/PICO4robot/PICO-elevationmap/main/docs/assets/realsense_window.png)
 
 静态 D435i 的原型质量输出，不是标定后的部署效果。
 

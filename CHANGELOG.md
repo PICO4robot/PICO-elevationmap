@@ -13,6 +13,8 @@ The project is pre-1.0: minor releases may contain breaking changes.
 - `README.md` is now the concise English entry point and `README.zh-CN.md` the concise
   Chinese entry point; detailed live-sensor, ROS2 launch and Foxglove instructions live
   in `docs/development.md`.
+- Regenerated `docs/assets/realsense_window.png` and `docs/assets/dual_voxel.png` with
+  the probability voxel renderer.
 
 ### Changed
 
