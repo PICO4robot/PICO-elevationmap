@@ -47,7 +47,7 @@ ros = []
 # 无系统 CUDA toolkit 的机器：NVRTC 需要 CUDA 12.x headers + nvrtc 库。
 # 只装 cudart/nvrtc 两个组件，比完整的 cupy-cuda12x[ctk] 轻很多。
 # 上限刻意锁在 <13：cupy-cuda12x 不能使用 CUDA 13 headers。
-cuda = ["cuda-toolkit[cudart,nvrtc]>=12,<13"]
+cuda = ["cuda-toolkit[cudart,nvrtc]>=12,<14"]
 # RealSense D435i 等深度相机直连（src/pico_elevationmap/live/realsense_live.py）。
 realsense = ["pyrealsense2>=2.55,<3"]
 
