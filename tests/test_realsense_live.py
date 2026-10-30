@@ -107,6 +107,49 @@ def test_voxel_map_carves_free_space_but_keeps_endpoint() -> None:
     np.testing.assert_allclose(centers[0], [2.05, 0.05, 0.05], atol=1e-12)
 
 
+def test_voxel_map_probability_model_and_free_updates() -> None:
+    voxels = VoxelMap(voxel_size=0.1, ttl=0)
+    voxels.add(np.array([[0.0, 0.0, 0.0]]), stamp=0.0)
+    centers, probabilities = voxels.centers_with_probabilities()
+    assert centers.shape == (1, 3)
+    assert 0.0 < probabilities[0] < 1.0
+    voxels.carve_free(np.zeros(3), np.array([[5.0, 0.0, 0.0]]), max_rays=1, max_steps=64)
+    centers, probabilities = voxels.centers_with_probabilities()
+    assert centers.shape == (0, 3)
+    assert probabilities.shape == (0,)
+
+
+def test_render_voxels_probability_changes_color_and_alpha() -> None:
+    centers = np.array([[0.0, 0.0, 0.0]], dtype=np.float64)
+    common = dict(
+        z_min=-0.1,
+        z_max=1.0,
+        target=np.zeros(3),
+        yaw=0.8,
+        pitch=0.4,
+        distance=3.0,
+        voxel_size=0.05,
+    )
+    high = render_voxels(centers, probabilities=np.array([0.95]), **common)
+    low = render_voxels(centers, probabilities=np.array([0.05]), **common)
+    assert not np.array_equal(high, low)
+    assert int(high[260, 360].sum()) > int(low[260, 360].sum())
+
+
+def test_render_voxels_rejects_bad_probability_length() -> None:
+    with pytest.raises(ValueError, match="probabilities length"):
+        render_voxels(
+            np.zeros((2, 3)),
+            probabilities=np.array([0.5]),
+            z_min=-0.1,
+            z_max=1.0,
+            target=np.zeros(3),
+            yaw=0.8,
+            pitch=0.4,
+            distance=3.0,
+        )
+
+
 def test_render_voxels_returns_image() -> None:
     centers = np.array([[0.0, 0.0, 0.0], [0.2, 0.1, 0.3]], dtype=np.float64)
     img = render_voxels(

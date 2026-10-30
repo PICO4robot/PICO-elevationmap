@@ -75,6 +75,7 @@ class FoxglovePublisher:
         *,
         elevation: np.ndarray,
         centers: np.ndarray,
+        probabilities: np.ndarray | None = None,
         resolution: float,
         center: np.ndarray,
         stamp: float,
@@ -94,13 +95,26 @@ class FoxglovePublisher:
             self._elev_pub.publish(self._cloud(np.stack([x, y, z], axis=1), rgb, stamp))
 
         voxels = np.asarray(centers, dtype=np.float64).reshape(-1, 3)
-        voxels = voxels[np.isfinite(voxels).all(axis=1)]
+        valid = np.isfinite(voxels).all(axis=1)
+        probs = None
+        if probabilities is not None:
+            probs = np.asarray(probabilities, dtype=np.float64).reshape(-1)
+            if len(probs) != len(voxels):
+                raise ValueError(f"probabilities length {len(probs)} != centers length {len(voxels)}")
+            probs = probs[valid]
+        voxels = voxels[valid]
         if len(voxels):
             lo, hi = np.percentile(voxels[:, 2], [2.0, 98.0])
             span = max(float(np.nanmax(voxels[:, 2]) - np.nanmin(voxels[:, 2])), 1e-6)
             norm = np.clip((voxels[:, 2] - lo) / span, 0.0, 1.0)
             palette = cv2.applyColorMap((norm * 255.0).astype(np.uint8), cv2.COLORMAP_TURBO)
             rgb = palette.reshape(-1, 3)[:, ::-1]
+            if probs is not None:
+                rgb = np.clip(
+                    rgb.astype(np.float32) * (0.55 + 0.45 * probs[:, None]),
+                    0.0,
+                    255.0,
+                ).astype(np.uint8)
             self._voxel_pub.publish(self._cloud(voxels, rgb, stamp))
 
     def close(self) -> None:

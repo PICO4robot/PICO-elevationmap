@@ -296,6 +296,24 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--voxel-alpha", type=float, default=0.55, help="voxel square opacity 0-1 (default 0.55)")
     parser.add_argument("--voxel-min-hits", type=int, default=1, help="minimum hits to draw a voxel (default 1)")
     parser.add_argument(
+        "--voxel-hit-log-odds",
+        type=float,
+        default=0.85,
+        help="log-odds increment for a hit (default 0.85)",
+    )
+    parser.add_argument(
+        "--voxel-miss-log-odds",
+        type=float,
+        default=-0.85,
+        help="log-odds increment for a ray passing through (default -0.85)",
+    )
+    parser.add_argument(
+        "--voxel-occ-prob",
+        type=float,
+        default=0.65,
+        help="minimum occupancy probability to draw a voxel (default 0.65)",
+    )
+    parser.add_argument(
         "--voxel-ttl", type=float, default=2.0, help="seconds before unseen voxels expire; 0 disables (default 2.0)"
     )
     parser.add_argument(
@@ -334,6 +352,12 @@ def main() -> None:
         raise SystemExit("--voxel-alpha must be in (0, 1]")
     if args.voxel_min_hits < 1:
         raise SystemExit("--voxel-min-hits must be >= 1")
+    if args.voxel_hit_log_odds <= 0.0:
+        raise SystemExit("--voxel-hit-log-odds must be > 0")
+    if args.voxel_miss_log_odds >= 0.0:
+        raise SystemExit("--voxel-miss-log-odds must be < 0")
+    if not 0.0 < args.voxel_occ_prob < 1.0:
+        raise SystemExit("--voxel-occ-prob must be in (0, 1)")
     if args.voxel_ttl < 0.0:
         raise SystemExit("--voxel-ttl must be >= 0")
     if args.voxel_max_rays < 1:
@@ -358,7 +382,18 @@ def main() -> None:
         else None
     )
     voxel_render = voxel_view or args.voxel_save is not None
-    voxel_map = VoxelMap(args.voxel_size, args.voxel_min_hits, ttl=args.voxel_ttl) if voxel_render else None
+    voxel_map = (
+        VoxelMap(
+            args.voxel_size,
+            args.voxel_min_hits,
+            ttl=args.voxel_ttl,
+            hit_log_odds=args.voxel_hit_log_odds,
+            miss_log_odds=args.voxel_miss_log_odds,
+            occ_probability=args.voxel_occ_prob,
+        )
+        if voxel_render
+        else None
+    )
 
     import cupy as cp
     import pyrealsense2 as rs
@@ -534,13 +569,18 @@ def main() -> None:
                     pass
                 valid = np.isfinite(elevation)
                 coverage = float(valid.mean())
-                centers = voxel_map.centers() if voxel_map is not None else np.empty((0, 3))
+                if voxel_map is not None:
+                    centers, probabilities = voxel_map.centers_with_probabilities()
+                else:
+                    centers = np.empty((0, 3))
+                    probabilities = np.empty((0,))
                 center = mapper.center
                 target = np.array([center[0], center[1], 0.0])
                 canvas = viewer.compose(
                     elevation=elevation,
                     traversability=traversability,
                     voxel_centers=centers,
+                    voxel_probabilities=probabilities,
                     target=target,
                     fps=fps,
                     coverage=coverage,
@@ -553,10 +593,15 @@ def main() -> None:
 
             if foxglove is not None and (i + 1) % args.view_every == 0:
                 elevation = mapper.get_layer("elevation")
-                centers = voxel_map.centers() if voxel_map is not None else np.empty((0, 3))
+                if voxel_map is not None:
+                    centers, probabilities = voxel_map.centers_with_probabilities()
+                else:
+                    centers = np.empty((0, 3))
+                    probabilities = np.empty((0,))
                 foxglove.publish(
                     elevation=elevation,
                     centers=centers,
+                    probabilities=probabilities,
                     resolution=cfg.resolution,
                     center=mapper.center,
                     stamp=stamp,

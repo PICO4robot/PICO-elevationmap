@@ -52,6 +52,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--voxel-size", type=float, default=0.05)
     parser.add_argument("--voxel-alpha", type=float, default=0.55)
     parser.add_argument("--voxel-min-hits", type=int, default=1)
+    parser.add_argument("--voxel-hit-log-odds", type=float, default=0.85)
+    parser.add_argument("--voxel-miss-log-odds", type=float, default=-0.85)
+    parser.add_argument("--voxel-occ-prob", type=float, default=0.65)
     parser.add_argument("--voxel-ttl", type=float, default=2.0)
     parser.add_argument("--voxel-carve", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--voxel-max-rays", type=int, default=1200)
@@ -135,6 +138,16 @@ def main() -> None:
         raise SystemExit("--z-max must be > --z-min")
     if not 0.0 < args.voxel_alpha <= 1.0:
         raise SystemExit("--voxel-alpha must be in (0, 1]")
+    if args.voxel_min_hits < 1:
+        raise SystemExit("--voxel-min-hits must be >= 1")
+    if args.voxel_hit_log_odds <= 0.0:
+        raise SystemExit("--voxel-hit-log-odds must be > 0")
+    if args.voxel_miss_log_odds >= 0.0:
+        raise SystemExit("--voxel-miss-log-odds must be < 0")
+    if not 0.0 < args.voxel_occ_prob < 1.0:
+        raise SystemExit("--voxel-occ-prob must be in (0, 1)")
+    if args.voxel_ttl < 0.0:
+        raise SystemExit("--voxel-ttl must be >= 0")
 
     from pico_elevationmap.core.mapper import ElevationMapper, MapperConfig
 
@@ -160,7 +173,14 @@ def main() -> None:
         else None
     )
     voxel_map = (
-        VoxelMap(args.voxel_size, args.voxel_min_hits, ttl=args.voxel_ttl)
+        VoxelMap(
+            args.voxel_size,
+            args.voxel_min_hits,
+            ttl=args.voxel_ttl,
+            hit_log_odds=args.voxel_hit_log_odds,
+            miss_log_odds=args.voxel_miss_log_odds,
+            occ_probability=args.voxel_occ_prob,
+        )
         if (args.voxel_view or args.voxel_save is not None)
         else None
     )
@@ -238,12 +258,17 @@ def main() -> None:
                 except KeyError:
                     pass
                 valid = np.isfinite(elevation)
-                centers = voxel_map.centers() if voxel_map is not None else np.empty((0, 3))
+                if voxel_map is not None:
+                    centers, probabilities = voxel_map.centers_with_probabilities()
+                else:
+                    centers = np.empty((0, 3))
+                    probabilities = np.empty((0,))
                 center = mapper.center
                 canvas = viewer.compose(
                     elevation=elevation,
                     traversability=traversability,
                     voxel_centers=centers,
+                    voxel_probabilities=probabilities,
                     target=np.array([center[0], center[1], 0.0]),
                     fps=fps,
                     coverage=float(valid.mean()),

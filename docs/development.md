@@ -175,12 +175,15 @@ uv run python -m pico_elevationmap.live.realsense_live \
 
 - `--view` 只看 2D；`--voxel-view` 只看 3D；两个一起用会在**同一个窗口**里
   显示上半 2D（高程 + traversability + 色标）和下半 3D 体素；
-- `--voxel-size` 控制体素边长（默认 5 cm），渲染为带透明度的小方块；
-  `--voxel-alpha`（默认 0.55）调整透明度；
+- `--voxel-size` 控制体素边长（默认 5 cm）；每个体素保存概率占用 log-odds，
+  命中增加、射线穿过减少；小方块的颜色亮度和透明度随概率变化；
+  `--voxel-alpha`（默认 0.55）是最大透明度；
+- `--voxel-occ-prob`（默认 0.65）是绘制门限，`--voxel-hit-log-odds` /
+  `--voxel-miss-log-odds`（默认 0.85 / -0.85）是命中/穿透证据强度；
 - 点击窗口获得焦点：鼠标左键拖拽旋转、滚轮缩放；也可用 `a/d` 偏航、
   `w/s` 俯仰、`+/-` 缩放、`q` 退出；
-- 动态障碍物：默认每 3 帧沿当前深度射线清空自由空间；`--voxel-ttl`（默认 2 s）
-  清理未再观测的体素，`--no-voxel-carve` 关闭射线清空；`--voxel-carve-every`、
+- 动态障碍物：默认每 3 帧沿当前深度射线做 free 更新；`--voxel-ttl`（默认 2 s）
+  清理未再命中的体素，`--no-voxel-carve` 关闭射线清除；`--voxel-carve-every`、
   `--voxel-max-rays`、`--voxel-carve-steps` 可调清理频率/开销；
 - 视图 target 跟随 `mapper.center`；接上里程计/位姿后，地图和视角会随运动前移；
 - `--voxel-save` 保存最后一帧 3D 面板；`--view-save` 保存完整合并窗口。

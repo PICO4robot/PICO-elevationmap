@@ -80,6 +80,7 @@ class SingleWindowViewer:
         elevation: np.ndarray,
         traversability: np.ndarray | None,
         voxel_centers: np.ndarray,
+        voxel_probabilities: np.ndarray | None = None,
         target: np.ndarray,
         fps: float,
         coverage: float,
@@ -123,6 +124,7 @@ class SingleWindowViewer:
         if self.show_3d:
             voxel_img = render_voxels(
                 voxel_centers,
+                probabilities=voxel_probabilities,
                 z_min=self.z_min,
                 z_max=self.z_max,
                 target=target,

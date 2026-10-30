@@ -1,4 +1,4 @@
-"""Sparse voxel occupancy map and perspective voxel renderer."""
+"""Sparse probabilistic voxel occupancy map and perspective voxel renderer."""
 
 from __future__ import annotations
 
@@ -9,23 +9,60 @@ import numpy as np
 __all__ = ["VoxelMap", "render_voxels"]
 
 
-class VoxelMap:
-    """稀疏体素占用图：世界系点云 → dict[(i,j,k)] 命中计数 + 最近观测时间。
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, float(value)))
 
-    动态场景的可视化需要“遗忘”机制：
-    - ``carve_free`` 从传感器原点沿当前深度射线采样，把射线经过的旧占用格删掉；
-    - ``prune`` 按时间戳清理超过 TTL 未再观测的体素，作为遮挡/稀疏射线的兜底。
+
+def _probability(log_odds: float) -> float:
+    return 1.0 / (1.0 + math.exp(-_clamp(log_odds, -60.0, 60.0)))
+
+
+class VoxelMap:
+    """Sparse probabilistic voxel occupancy map with log-odds updates.
+
+    每个体素保存 log-odds ``l = log(p / (1 - p))``、命中计数和最近观测时间：
+
+    - ``add`` 对命中体素做正向更新；
+    - ``carve_free`` 沿传感器射线对穿过的旧体素做负向更新；
+    - ``prune`` 仍按 TTL 清理长期未命中的体素，作为稀疏射线/遮挡的兜底；
+    - ``centers_with_probabilities`` 返回到过占用概率门限的体素及其概率，
+      ``centers`` 只返回位置（兼容旧调用）。
     """
 
-    def __init__(self, voxel_size: float = 0.05, min_hits: int = 1, ttl: float | None = 2.0) -> None:
+    def __init__(
+        self,
+        voxel_size: float = 0.05,
+        min_hits: int = 1,
+        ttl: float | None = 2.0,
+        *,
+        hit_log_odds: float = 0.85,
+        miss_log_odds: float = -0.85,
+        min_log_odds: float = -2.0,
+        max_log_odds: float = 3.5,
+        occ_probability: float = 0.65,
+    ) -> None:
         if voxel_size <= 0.0:
             raise ValueError(f"voxel_size must be > 0, got {voxel_size}")
         if min_hits < 1:
             raise ValueError(f"min_hits must be >= 1, got {min_hits}")
+        if hit_log_odds <= 0.0:
+            raise ValueError(f"hit_log_odds must be > 0, got {hit_log_odds}")
+        if miss_log_odds >= 0.0:
+            raise ValueError(f"miss_log_odds must be < 0, got {miss_log_odds}")
+        if min_log_odds >= max_log_odds:
+            raise ValueError(f"min_log_odds must be < max_log_odds, got {min_log_odds} >= {max_log_odds}")
+        if not 0.0 < occ_probability < 1.0:
+            raise ValueError(f"occ_probability must be in (0, 1), got {occ_probability}")
         self.voxel_size = float(voxel_size)
         self.min_hits = int(min_hits)
         self.ttl = ttl
-        self._counts: dict[tuple[int, int, int], int] = {}
+        self.hit_log_odds = float(hit_log_odds)
+        self.miss_log_odds = float(miss_log_odds)
+        self.min_log_odds = float(min_log_odds)
+        self.max_log_odds = float(max_log_odds)
+        self.occ_threshold = math.log(occ_probability / (1.0 - occ_probability))
+        self._log_odds: dict[tuple[int, int, int], float] = {}
+        self._hits: dict[tuple[int, int, int], int] = {}
         self._last_seen: dict[tuple[int, int, int], float] = {}
 
     def add(self, points_world: np.ndarray, stamp: float = 0.0) -> None:
@@ -37,7 +74,14 @@ class VoxelMap:
         uniq, counts = np.unique(keys, axis=0, return_counts=True)
         for key, count in zip(uniq, counts):
             k = (int(key[0]), int(key[1]), int(key[2]))
-            self._counts[k] = self._counts.get(k, 0) + int(count)
+            hits = int(count)
+            self._hits[k] = self._hits.get(k, 0) + hits
+            update = self.hit_log_odds * min(hits, 4)
+            self._log_odds[k] = _clamp(
+                self._log_odds.get(k, 0.0) + update,
+                self.min_log_odds,
+                self.max_log_odds,
+            )
             self._last_seen[k] = float(stamp)
 
     def carve_free(
@@ -48,10 +92,10 @@ class VoxelMap:
         max_rays: int = 1200,
         max_steps: int = 32,
     ) -> None:
-        """沿 origin → 当前点射线标记自由空间，删除射线穿过的旧占用格。
+        """沿 origin → 当前点射线采样，对穿过的旧占用格做 free 更新。
 
-        只采样射线上的体素（不逐点 DDA），够快；端点体素不删，避免把当前
-        观测到的障碍物清掉。射线很稀疏时由 ``prune`` 的 TTL 兜底。
+        只采样射线上的体素（不逐点 DDA），够快；端点体素不做 free 更新，避免
+        把当前观测到的障碍物清掉。射线很稀疏时由 ``prune`` 的 TTL 兜底。
         """
         points = np.asarray(points_world, dtype=np.float64).reshape(-1, 3)
         points = points[np.isfinite(points).all(axis=1)]
@@ -70,34 +114,48 @@ class VoxelMap:
         free_keys = set(map(tuple, np.floor(samples / self.voxel_size).astype(np.int64).reshape(-1, 3)))
         endpoint_keys = set(map(tuple, np.floor(points / self.voxel_size).astype(np.int64)))
         for k in free_keys:
-            if k in self._counts and k not in endpoint_keys:
-                del self._counts[k]
-                self._last_seen.pop(k, None)
+            if k in self._log_odds and k not in endpoint_keys:
+                self._log_odds[k] = _clamp(
+                    self._log_odds[k] + self.miss_log_odds,
+                    self.min_log_odds,
+                    self.max_log_odds,
+                )
 
     def prune(self, now: float, ttl: float | None = None) -> None:
-        """清理超过 TTL 未再观测的体素；ttl=0/None 表示禁用。"""
+        """清理超过 TTL 未再命中的体素；ttl=0/None 表示禁用。"""
         limit = self.ttl if ttl is None else ttl
         if limit is None or limit <= 0.0:
             return
         for k, seen in list(self._last_seen.items()):
             if now - seen > limit:
-                self._counts.pop(k, None)
+                self._log_odds.pop(k, None)
+                self._hits.pop(k, None)
                 self._last_seen.pop(k, None)
 
     def __len__(self) -> int:
-        return len(self._counts)
+        return len(self._log_odds)
+
+    def centers_with_probabilities(self) -> tuple[np.ndarray, np.ndarray]:
+        keys = [
+            k
+            for k, log_odds in self._log_odds.items()
+            if self._hits.get(k, 0) >= self.min_hits and log_odds >= self.occ_threshold
+        ]
+        if not keys:
+            return np.empty((0, 3), dtype=np.float64), np.empty((0,), dtype=np.float64)
+        arr = np.asarray(keys, dtype=np.float64)
+        centers = (arr + 0.5) * self.voxel_size
+        probabilities = np.asarray([_probability(self._log_odds[k]) for k in keys], dtype=np.float64)
+        return centers, probabilities
 
     def centers(self) -> np.ndarray:
-        keys = [k for k, count in self._counts.items() if count >= self.min_hits]
-        if not keys:
-            return np.empty((0, 3), dtype=np.float64)
-        arr = np.asarray(keys, dtype=np.float64)
-        return (arr + 0.5) * self.voxel_size
+        return self.centers_with_probabilities()[0]
 
 
 def render_voxels(
     centers: np.ndarray,
     *,
+    probabilities: np.ndarray | None = None,
     z_min: float,
     z_max: float,
     target: np.ndarray,
@@ -111,12 +169,16 @@ def render_voxels(
     bands: int = 12,
     alpha: float = 0.55,
 ) -> np.ndarray:
-    """把稀疏体素中心渲染成透视 3D 地图（小方块 + 统一透明度）。"""
+    """把稀疏体素中心渲染成透视 3D 地图（小方块，颜色/透明度随概率变化）。
+
+    ``probabilities`` 与 ``centers`` 一一对应；缺省时按 1.0 处理，保持旧行为。
+    低概率体素更暗、更透明；高概率体素更亮、更实。
+    """
     import cv2
 
     img = np.full((height, width, 3), 22, dtype=np.uint8)
     overlay = np.zeros_like(img)
-    mask = np.zeros((height, width), dtype=np.uint8)
+    alpha_map = np.zeros((height, width), dtype=np.uint8)
     target = np.asarray(target, dtype=np.float64)
     eye = target + float(distance) * np.array(
         [math.cos(pitch) * math.cos(yaw), math.cos(pitch) * math.sin(yaw), math.sin(pitch)]
@@ -169,8 +231,16 @@ def render_voxels(
 
     if len(centers) > 0:
         centers = np.asarray(centers, dtype=np.float64)
+        if probabilities is None:
+            probs = np.ones(len(centers), dtype=np.float64)
+        else:
+            probs = np.asarray(probabilities, dtype=np.float64).reshape(-1)
+            if len(probs) != len(centers):
+                raise ValueError(f"probabilities length {len(probs)} != centers length {len(centers)}")
         if len(centers) > 30000:
-            centers = centers[:: int(np.ceil(len(centers) / 30000))]
+            step = int(np.ceil(len(centers) / 30000))
+            centers = centers[::step]
+            probs = probs[::step]
         u, v, depth = project(centers)
         valid = (depth > 0.2) & np.isfinite(depth)
         valid &= (u >= 0) & (u < width) & (v >= 0) & (v < height)
@@ -185,7 +255,10 @@ def render_voxels(
         for idx in np.argsort(-depth):
             if not valid[idx]:
                 continue
-            color = tuple(int(c) for c in palette[band[idx]])
+            probability = float(np.clip(probs[idx], 0.0, 1.0))
+            base = palette[band[idx]]
+            color = tuple(int(c * (0.55 + 0.45 * probability)) for c in base)
+            opacity = float(np.clip(alpha * (0.35 + 0.65 * probability), 0.05, 1.0))
             half = int(half_px[idx])
             cx, cy = int(u[idx]), int(v[idx])
             x0, x1 = max(cx - half, 0), min(cx + half, width - 1)
@@ -193,14 +266,21 @@ def render_voxels(
             if x0 > x1 or y0 > y1:
                 continue
             cv2.rectangle(overlay, (x0, y0), (x1, y1), color, -1, cv2.LINE_AA)
-            cv2.rectangle(mask, (x0, y0), (x1, y1), 255, -1)
+            cv2.rectangle(
+                alpha_map,
+                (x0, y0),
+                (x1, y1),
+                int(round(opacity * 255.0)),
+                -1,
+                cv2.LINE_AA,
+            )
             if half >= 2:
                 border = tuple(max(0, int(c * 0.55)) for c in color)
                 cv2.rectangle(overlay, (x0, y0), (x1, y1), border, 1, cv2.LINE_AA)
-        if mask.any():
-            blended = cv2.addWeighted(img, 1.0 - alpha, overlay, alpha, 0.0)
-            covered = mask.astype(bool)
-            img[covered] = blended[covered]
+        if alpha_map.any():
+            alpha_f = alpha_map[:, :, None].astype(np.float32) / 255.0
+            blended = img.astype(np.float32) * (1.0 - alpha_f) + overlay.astype(np.float32) * alpha_f
+            img = np.clip(blended, 0.0, 255.0).astype(np.uint8)
 
     cv2.putText(
         img,
