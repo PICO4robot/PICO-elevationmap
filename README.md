@@ -133,7 +133,8 @@ bash -n scripts/setup_env.sh
 ```
 
 GPU and ROS integration cases skip automatically when the corresponding hardware or
-environment is absent; the suite does not hardcode a pass count. Environment setup,
+environment is absent; the suite does not hardcode a pass count. Open work is tracked
+in [TODO.md](TODO.md). Environment setup,
 CUDA headers, GitHub access and troubleshooting are in
 [docs/development.md](docs/development.md).
 

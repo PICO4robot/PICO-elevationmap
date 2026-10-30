@@ -12,7 +12,8 @@
 | [concepts.md](concepts.md) | 概念辨析：BEV 与 elevation map 的关系与合流趋势 | v0.1 |
 
 根目录 [README.md](../README.md) 承担项目介绍与快速上手；开发环境搭建、CUDA
-headers、GitHub 访问与踩坑处理见 [development.md](development.md)。
+headers、GitHub 访问与踩坑处理见 [development.md](development.md)；未完成事项见
+[TODO.md](../TODO.md)。
 
 ## 文档语言
 

@@ -11,6 +11,7 @@ The project is pre-1.0: minor releases may contain breaking changes.
 ### Added
 
 - `docs/en/`: English Quickstart, API and open-source readiness summaries.
+- `TODO.md`: tracked remaining hardware, CI, packaging and community work.
 - `scripts/setup_env.sh`: one-click source environment setup (CUDA + RealSense
   extras, NVRTC/RealSense verification, optional `.venv-ros`, pytest) with a
   per-command SSH fallback when GitHub HTTPS is unreachable.
