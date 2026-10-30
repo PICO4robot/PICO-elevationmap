@@ -6,7 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 The project is pre-1.0: minor releases may contain breaking changes.
 
-## [Unreleased]
+## [0.4.1] - 2026-10-30
+
+### Changed
+
+- GitHub Actions `actions/checkout` and `astral-sh/setup-uv` were updated to v7 via
+  Dependabot; CI and release workflows now use Node 24-compatible action versions.
+- Dependabot now ignores CUDA major-version updates, so it cannot widen the CUDA 12.x
+  constraint to an incompatible CUDA 13 toolchain.
+- Added `TODO.md` and recorded the `v0.4.0` public-release status in the readiness docs.
+
+### Fixed
+
+- Restored the explicit `cuda-toolkit[cudart,nvrtc]>=12,<13` constraint after the
+  Dependabot PR that proposed `>=12,<14` and failed CI (`cupy-cuda12x` requires
+  CUDA 12.x headers).
+
+## [0.4.0] - 2026-10-30
+
+First public GitHub release (source alpha; no PyPI publishing).
 
 ### Added
 
@@ -77,10 +95,7 @@ The project is pre-1.0: minor releases may contain breaking changes.
 - `launch/bringup.launch.py` now fails fast with an actionable error when the
   configured `.venv-ros` Python is missing, while keeping `python:=` configurable.
 
-## [0.4.0] - 2026-10-30
-
-First public GitHub release (source alpha; no PyPI publishing). The release workflow
-and readiness checklist target tag `v0.4.0`. Summary of the work on `main`:
+### Highlights
 
 - ROS-free core wrapping `elevation_mapping_cupy_core` with a timestamped SE3 pose
   buffer instead of tf.

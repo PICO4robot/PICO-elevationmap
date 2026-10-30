@@ -4,7 +4,7 @@
 
 [project]
 name = "pico-elevationmap"
-version = "0.4.0"
+version = "0.4.1"
 description = "PICO elevation mapping: ROS-free core with a CUDA/cupy backend"
 readme = "README.md"
 # CI 只测 Python 3.12；3.10/3.11 暂时保留在元数据范围内以兼容上游依赖，
@@ -46,7 +46,8 @@ dependencies = [
 ros = []
 # 无系统 CUDA toolkit 的机器：NVRTC 需要 CUDA 12.x headers + nvrtc 库。
 # 只装 cudart/nvrtc 两个组件，比完整的 cupy-cuda12x[ctk] 轻很多。
-cuda = ["cuda-toolkit[cudart,nvrtc]==12.*"]
+# 上限刻意锁在 <13：cupy-cuda12x 不能使用 CUDA 13 headers。
+cuda = ["cuda-toolkit[cudart,nvrtc]>=12,<13"]
 # RealSense D435i 等深度相机直连（src/pico_elevationmap/live/realsense_live.py）。
 realsense = ["pyrealsense2>=2.55,<3"]
 

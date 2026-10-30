@@ -16,3 +16,12 @@ updates:
     groups:
       python-deps:
         patterns: ["*"]
+    # The project pins CUDA 12.x headers (cupy-cuda12x); do not let Dependabot
+    # widen the constraint to CUDA 13.
+    ignore:
+      - dependency-name: "cuda-toolkit"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "cupy-cuda12x"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "nvidia-cuda-*"
+        update-types: ["version-update:semver-major"]

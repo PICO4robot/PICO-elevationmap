@@ -151,7 +151,7 @@ License 合规：cupy_core（MIT）、elevation_mapping（BSD-3）的版权与�
 
 ```
 PICO-elevationmap/
-├── pyproject.toml              # setuptools + uv，version = 0.4.0，license = MIT
+├── pyproject.toml              # setuptools + uv，version = 0.4.1，license = MIT
 ├── uv.lock
 ├── README.md
 ├── docs/
@@ -225,7 +225,7 @@ CLI `pico-elevationmap`（dispatcher 模式）。
 - **ruff**：`[tool.ruff]` 段照抄 PICO-rl（120 列、双引号、`E,W,F,I,UP`）；
 - **测试**：pytest，tests/ 镜像 src；CI 无 GPU，只跑 CPU 测试并由 conftest 自动
   skip GPU/ROS 用例，不依赖 mock 后端；GPU 路径需在带 CUDA 的机器上单独验证；
-- **版本**：SemVer 从 0.1.0 起步，写 pyproject `version`（当前 0.4.0）；
+- **版本**：SemVer 从 0.1.0 起步，写 pyproject `version`（当前 0.4.1）；
   conventional commits，scope 用 `(map)`；
 - **资产联动**：仿真 / 测试消费 PICO-robot MJCF 模型时，照抄 ASSETS.lock +
   check_asset_pins.py 机制；

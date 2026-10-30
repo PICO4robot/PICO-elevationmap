@@ -1,6 +1,6 @@
 # 库 API 使用
 
-> 版本：v0.1　日期：2026-10-29　状态：与 0.4.0 代码同步
+> 版本：v0.1　日期：2026-10-30　状态：与 0.4.1 代码同步
 > 关联：[concepts.md](concepts.md)、[development.md](development.md)、[open-source-readiness.md](open-source-readiness.md)
 
 ## 1. 导入约定

@@ -81,7 +81,7 @@ def test_cli_unknown_command_exits_2(monkeypatch: pytest.MonkeyPatch, capsys: py
 
 
 def test_version() -> None:
-    assert importlib.metadata.version("pico-elevationmap") == "0.4.0"
+    assert importlib.metadata.version("pico-elevationmap") == "0.4.1"
 
 
 def test_synthetic_pointcloud_fixture(synthetic_pointcloud: list[tuple[float, float, float]]) -> None:

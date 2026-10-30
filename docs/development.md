@@ -77,7 +77,7 @@ RuntimeError: Failed to find CUDA headers. Please install CUDA toolkit headers
 ```bash
 uv sync --extra cuda
 # 等价于只装 headers + nvrtc（约 100 MB，比完整 ctk 轻很多）：
-# uv pip install 'cuda-toolkit[cudart,nvrtc]==12.*'
+# uv pip install 'cuda-toolkit[cudart,nvrtc]>=12,<13'
 ```
 
 这也适用于已经 `uv sync` 过的环境；它会补上 `cuda-toolkit[cudart,nvrtc]`。

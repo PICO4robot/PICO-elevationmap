@@ -7,7 +7,7 @@
 ## 1. 结论
 
 项目已选择 **MIT License**（2026-10-30），发布形态为 **公开 GitHub 仓库 + GitHub
-Release**（tag `v0.4.0`），不发布 PyPI。代码、测试与文档具备对外协作的基础；P0 技术阻塞已清理，
+Release**（tag `v0.4.1`），不发布 PyPI。代码、测试与文档具备对外协作的基础；P0 技术阻塞已清理，
 剩余为 P1 级事项：
 
 - `uv.lock` 已改用 PyPI 重建，锁文件不再包含 Aliyun 镜像地址。
@@ -109,9 +109,9 @@ README、design 与本节已同步。
 - [x] 确认仓库不含 `.venv*`、缓存、`maps/`、`*.npz` 等生成物或超过 5 MB 的二进制
 - [x] 在至少一台 x86_64 + NVIDIA GPU 机器上跑通 README Quickstart
 - [ ] 如需 ROS2 发布，单独验证 `requires_ros` 用例与 `uv run pico-elevationmap-ros --help`
-- [x] 打 tag `v0.4.0`（与 `pyproject.toml` / CHANGELOG 版本一致；已推送）
-- [x] 确认 tag 触发的 `.github/workflows/release.yml` 构建 / twine 检查 / GitHub Release 成功（run `40976424458`；该 workflow 不发布到 PyPI，也不改变许可证）
-- [x] 发布说明中写明支持矩阵、已知限制与“非生产就绪”状态（Release v0.4.0）
+- [ ] 打 tag `v0.4.1`（与 `pyproject.toml` / CHANGELOG 版本一致；发布后勾选）
+- [ ] 确认 tag 触发的 `.github/workflows/release.yml` 构建 / twine 检查 / GitHub Release 成功（待 v0.4.1）
+- [ ] 发布说明中写明支持矩阵、已知限制与“非生产就绪”状态（待 v0.4.1）
 
 ## 6. 已知限制与非生产就绪范围
 

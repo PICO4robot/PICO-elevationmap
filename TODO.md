@@ -41,14 +41,15 @@ limitations are documented in [docs/open-source-readiness.md](docs/open-source-r
 ## 3. Packaging and release
 
 - [ ] **Wheel dependency resolution (P1)**: `elevation-mapping-cupy-core` is git-only,
-  so `pip install dist/*.whl` needs `--no-deps`. Resolve before any PyPI release; the
-  GitHub-only source install (`scripts/setup_env.sh`) remains the supported path.
-- [ ] **Dependabot PR review**: PR #2 relaxes `cuda-toolkit==12.*` to `>=12,<14`
-  (CI fails; do not merge). Review/merge the actions update PR only after confirming
-  the Node 20 deprecation warning is gone.
-- [ ] **Post-release docs**: tag `v0.4.0` points to `f479b20`; later commits
-  (`dependabot.yml`, release-status docs) are on `main`. Decide whether a follow-up
-  `v0.4.1` release is needed.
+  so `pip install dist/*.whl` needs `--no-deps`. Recommended path: publish a fork of the
+  upstream MIT core to PyPI under a unique distribution name from the owner's account,
+  then depend on that package; see [docs/pypi-release.md](docs/pypi-release.md). The
+  GitHub-only source install (`scripts/setup_env.sh`) remains the supported path until then.
+- [x] **Dependabot PR review**: PR #1 (actions group) merged as actions v7; PR #2
+  (`cuda-toolkit>=12,<14`) closed; `.github/dependabot.yml` now ignores CUDA
+  major-version updates and `cuda-toolkit` stays on 12.x.
+- [ ] **Post-release docs**: decide whether the `v0.4.1` release (post-tag actions and
+  docs commits) is needed; tag `v0.4.0` remains on `f479b20`.
 
 ## 4. Community and documentation
 
