@@ -9,6 +9,7 @@
 | [api.md](api.md) | 库 API：公共导入路径、`MapperConfig` → `ElevationMapper.add_pose/input/get_map` 示例、I/O 与可选的 ROS 转换层 | v0.1，与 0.4.2 代码同步 |
 | [open-source-readiness.md](open-source-readiness.md) | 开源发布就绪：MIT 许可证、第三方 MIT/BSD 声明、支持矩阵、发布检查清单、已知限制与非生产就绪范围 | v0.4，MIT 已定、GitHub-only 发布；PyPI lock 已重建、wheel 依赖仍待处理，CI 实跑已通过 |
 | [pypi-release.md](pypi-release.md) | PyPI 发布与 wheel 依赖解析：git-only 依赖的问题、fork 发布方案与备选方案 | v0.1 方案说明，尚未执行 |
+| [decisions.md](decisions.md) | 设计决策记录：可视化后端选型（自研 viewer、Foxglove、Rerun） | v0.1，D001 已记录 |
 | [semantic-extension.md](semantic-extension.md) | 语义扩展（Phase 5 提案）：MEM 原理、三条语义注入路径、现状与改动清单、价值场景、排期建议 | v0.1 提案，待真机验证后立项 |
 | [concepts.md](concepts.md) | 概念辨析：BEV 与 elevation map 的关系与合流趋势 | v0.1 |
 

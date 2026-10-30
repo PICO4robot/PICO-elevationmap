@@ -62,3 +62,9 @@ limitations are documented in [docs/open-source-readiness.md](docs/open-source-r
   `CITATION.cff`; consider enabling GitHub Discussions.
 - [ ] **ament package (P2)**: only if `ros2 run` / `ros2 launch` must become a
   first-class ROS2 entry point; currently `launch/` is repo-only.
+
+## 5. Not planned
+
+- **Rerun**: not adopted. Keep the custom OpenCV viewer default and Foxglove for ROS;
+  see [docs/decisions.md](docs/decisions.md) D001. Revisit only if time-travel or
+  multi-sensor synchronization becomes a requirement.
