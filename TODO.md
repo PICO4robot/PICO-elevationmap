@@ -53,8 +53,8 @@ limitations are documented in [docs/open-source-readiness.md](docs/open-source-r
 
 ## 4. Community and documentation
 
-- [ ] **CLA/DCO policy (P1)**: decide and document the contribution terms in
-  `CONTRIBUTING.md`.
+- [x] **CLA/DCO policy (P1)**: DCO 1.1 adopted (`git commit -s`), documented in
+  `CONTRIBUTING.md`, the PR template and [DCO](DCO).
 - [ ] **English documentation (P1)**: expand `docs/en/` beyond the current summaries
   (full development, deployment and sensor-profile translations if the audience needs
   them).

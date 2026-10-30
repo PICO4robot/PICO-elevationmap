@@ -12,11 +12,11 @@ Release**（tag `v0.4.1`），不发布 PyPI。代码、测试与文档具备对
 
 - `uv.lock` 已改用 PyPI 重建，锁文件不再包含 Aliyun 镜像地址。
 - 顶层 `scripts` 包已并入 `pico_elevationmap`，wheel 不再占用通用顶层包名。
-- CI 已在 GitHub Actions 上实际执行并通过（run `40971256320`）；本轮改动合并后
-  需再跑一次。
+- CI 已在 GitHub Actions 上实际执行并通过（run `40981648774`）；后续改动仍需再跑一次。
 - wheel 的 `elevation-mapping-cupy-core` 依赖仍来自 git 源，普通 pip 安装不带
-  `--no-deps` 会失败；GitHub-only 发布以源码安装为主路径。
-- 真实 ROS2 / LiDAR / 四相机硬件链路仍需现场验证；英文文档仍待补充。
+  `--no-deps` 会失败；GitHub-only 发布以源码安装为主路径，PyPI fork 路径见
+  [pypi-release.md](pypi-release.md)。
+- 真实 ROS2 / LiDAR / 四相机硬件链路仍需现场验证；英文摘要已补，完整翻译仍待补。
 
 ### 1.1 当前 P0/P1 状态
 
@@ -30,7 +30,7 @@ Release**（tag `v0.4.1`），不发布 PyPI。代码、测试与文档具备对
 | `scripts` 顶层命名冲突 | **已解决**：CLI / pipeline / live demo / configs 已移入 `pico_elevationmap`，顶层 `scripts` 目录只保留 `setup_env.sh`。 |
 | ROS 示例与真实 ROS 验证 | `src/pico_elevationmap/configs/ros_camera_lidar.yaml` 已通过解析测试；真实 ROS2 环境仍需单独验证。 |
 | 私有/失效链接 | README 已移除 PICO monorepo 与 sibling 仓库链接；历史文档中仍可能引用内部仓库。 |
-| 英文文档 | **待补**：README 为英文入口，`docs/` 仍以中文为主；至少需英文 Quickstart / API / readiness 摘要。 |
+| 英文文档 | **摘要已补**：`docs/en/` 已提供 Quickstart / API / readiness 摘要；完整英文翻译仍待补。 |
 
 ## 2. 许可证（已定：MIT）
 
@@ -42,11 +42,12 @@ README、design 与本节已同步。
 法律负担低，适合当前“先开放协作、再考虑商业化”的阶段。若未来需要专利授权或
 双许可证，应在单独 PR 中重新评估，并同步所有法律与文档文本。
 
+已定：贡献使用 **Developer Certificate of Origin 1.1**（DCO，`git commit -s`），全文见
+[DCO](../DCO)；贡献者授权确认由 sign-off 覆盖。
+
 仍待定：
 
-1. CLA / DCO 政策；
-2. 贡献者对其贡献的授权确认；
-3. 如果未来发布到 PyPI，需重新核对 `license` 元数据与 wheel/sdist 中的
+1. 如果未来发布到 PyPI，需重新核对 `license` 元数据与 wheel/sdist 中的
    `LICENSE` / `THIRD_PARTY_NOTICES.md`。
 
 ## 3. 第三方许可证与声明
@@ -90,16 +91,17 @@ README、design 与本节已同步。
 ## 5. 发布检查清单
 
 - [x] 许可证已定为 MIT：`LICENSE`、`pyproject.toml`、README 与 design/readiness 已同步
+- [x] 采用 DCO 1.1（`DCO`，`git commit -s`）并同步 `CONTRIBUTING.md` 与 PR 模板
 - [x] 添加并核对 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)，核对上游 MIT/BSD 文本
 - [x] 重新生成不绑定 Aliyun 镜像的 `uv.lock`，并让 `uv lock --check` 通过
-- [x] `uv sync --frozen` 在干净环境可复现（CI run `40976152323`）
+- [x] `uv sync --frozen` 在干净环境可复现（CI run `40981648774`）
 - [x] `env -u PYTHONPATH uv run pytest -q` 通过（GPU/ROS 用例按环境 skip）
 - [x] `uv run ruff check .` 与 `uv run ruff format --check .` 通过
 - [x] `uv build` 成功，`uvx twine check dist/*` 通过
 - [x] 在临时 venv 安装 wheel，运行 `pico-elevationmap --help`，并确认
       `pico_elevationmap.configs/*.yaml` 可从 wheel 中发现（CI smoke 已在 run
-      `40976152323` 执行，本地也验证过）
-- [x] CI workflow 已在 GitHub Actions 上实际执行并通过（run `40976152323`，Python 3.12）
+      `40981648774` 执行，本地也验证过）
+- [x] CI workflow 已在 GitHub Actions 上实际执行并通过（run `40981648774`，Python 3.12）
 - [x] wheel 内含 `py.typed`；`CHANGELOG.md` 与 `THIRD_PARTY_NOTICES.md` 通过
       `data-files` 进入 wheel，sdist 通过 `MANIFEST.in` 包含文档与 launch 示例
 - [x] 确认 `docs/assets/` 未打入不必要的大文件

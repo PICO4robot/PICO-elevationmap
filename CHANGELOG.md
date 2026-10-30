@@ -15,6 +15,8 @@ The project is pre-1.0: minor releases may contain breaking changes.
 - Dependabot now ignores CUDA major-version updates, so it cannot widen the CUDA 12.x
   constraint to an incompatible CUDA 13 toolchain.
 - Added `TODO.md` and recorded the `v0.4.0` public-release status in the readiness docs.
+- Adopted the Developer Certificate of Origin 1.1 (`DCO`); `CONTRIBUTING.md` and the
+  PR template now require `git commit -s` sign-off.
 
 ### Fixed
 
@@ -29,7 +31,6 @@ First public GitHub release (source alpha; no PyPI publishing).
 ### Added
 
 - `docs/en/`: English Quickstart, API and open-source readiness summaries.
-- `TODO.md`: tracked remaining hardware, CI, packaging and community work.
 - `scripts/setup_env.sh`: one-click source environment setup (CUDA + RealSense
   extras, NVRTC/RealSense verification, optional `.venv-ros`, pytest) with a
   per-command SSH fallback when GitHub HTTPS is unreachable.

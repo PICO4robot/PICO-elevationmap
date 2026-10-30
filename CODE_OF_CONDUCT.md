@@ -30,12 +30,10 @@ private information without permission.
 
 ## Reporting and enforcement
 
-Report unacceptable behavior to the project maintainers. A dedicated conduct contact
-and response timeline are **TBD**; until they are published, contact the repository
-maintainers through their GitHub profiles in the
-[PICO4robot organization](https://github.com/PICO4robot), or use GitHub's report-abuse
-flow for urgent platform-level concerns. Do not include sensitive personal details in
-a public issue.
+Report unacceptable behavior to the project maintainers through their GitHub profiles
+in the [PICO4robot organization](https://github.com/PICO4robot). Response is on a
+best-effort basis; for urgent platform-level concerns use GitHub's report-abuse flow.
+Do not include sensitive personal details in a public issue.
 
 Maintainers will review reports in good faith and may take any action they consider
 appropriate, including warnings, temporary restrictions or permanent removal from

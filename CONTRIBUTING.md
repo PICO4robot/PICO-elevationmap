@@ -67,8 +67,9 @@ docs(map): add release readiness checklist
 - Describe how you verified the change (commands, hardware, ROS distro, GPU).
 - The project is MIT-licensed; by contributing you agree that your contribution is
   provided under the MIT License. Do not change the license in an unrelated PR.
-- A CLA or DCO policy has **not** been decided (TBD). Do not add a sign-off
-  requirement or CLA wording on your own.
+- Contributions use the [Developer Certificate of Origin 1.1](https://developercertificate.org/).
+  Sign off every commit with `git commit -s` (`Signed-off-by: Name <email>`); the
+  full text is in [DCO](DCO). Do not add CLA wording on your own.
 
 By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 Security issues should follow [SECURITY.md](SECURITY.md), not a public issue.

@@ -26,7 +26,8 @@ In scope:
 
 - the Python packages `pico_elevationmap` and `pico_elevationmap_ros`;
 - the `pico-elevationmap` and `pico-elevationmap-ros` console scripts;
-- configuration parsing and file I/O in `scripts/`.
+- configuration parsing and file I/O under `src/pico_elevationmap/` (`pipeline/`,
+  `live/`, `configs/`) and `scripts/setup_env.sh`.
 
 Out of scope:
 
