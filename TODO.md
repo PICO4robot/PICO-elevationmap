@@ -45,7 +45,7 @@ limitations are documented in [docs/open-source-readiness.md](docs/open-source-r
   upstream MIT core to PyPI under a unique distribution name from the owner's account,
   then depend on that package; see [docs/pypi-release.md](docs/pypi-release.md). The
   GitHub-only source install (`scripts/setup_env.sh`) remains the supported path until then.
-- [x] **Dependabot PR review**: PR #1 (actions group) merged as actions v7; PR #2
+- [x] **Dependabot PR review**: PR #1 (actions group) merged as actions v7; PR #2 and #3
   (`cuda-toolkit>=12,<14`) closed; `.github/dependabot.yml` now ignores CUDA
   major-version updates and `cuda-toolkit` stays on 12.x.
 - [x] **Post-release docs**: `v0.4.1` released with the post-tag actions and docs

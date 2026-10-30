@@ -148,8 +148,9 @@ README、design 与本节已同步。
 - **wheel 依赖解析（P1）**：wheel 的 `Requires-Dist` 只是未固定版本的
   `elevation-mapping-cupy-core`，而该依赖当前仅通过 `tool.uv.sources` 的 git rev
   提供；因此不带 `--no-deps` 的 `uv pip install dist/*.whl` 会失败。GitHub-only
-  发布以 `bash scripts/setup_env.sh` 的**源码安装**为主路径；CI wheel smoke 用
-  `--no-deps` 检查 wheel 载荷与 CLI，不宣称“可直接从 PyPI 安装”。
+  发布以 `bash scripts/setup_env.sh` 的**源码安装**为主路径；PyPI fork 发布路径见
+  [pypi-release.md](pypi-release.md)。CI wheel smoke 用 `--no-deps` 检查 wheel
+  载荷与 CLI，不宣称“可直接从 PyPI 安装”。
 - **`scripts/` 顶层命名风险（已解决）**：CLI / pipeline / live demo / configs 已移入
   `pico_elevationmap`；顶层 `scripts/` 目录只保留 `setup_env.sh`，不再作为 Python
   包进入 wheel。
