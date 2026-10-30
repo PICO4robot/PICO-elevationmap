@@ -1,6 +1,6 @@
 # TODO
 
-Project status: public source alpha, GitHub-only release (`v0.4.0`), MIT licensed.
+Project status: public source alpha, GitHub-only release (`v0.4.1`), MIT licensed.
 This file tracks the work that is **not** complete; release posture and known
 limitations are documented in [docs/open-source-readiness.md](docs/open-source-readiness.md).
 
@@ -48,8 +48,8 @@ limitations are documented in [docs/open-source-readiness.md](docs/open-source-r
 - [x] **Dependabot PR review**: PR #1 (actions group) merged as actions v7; PR #2
   (`cuda-toolkit>=12,<14`) closed; `.github/dependabot.yml` now ignores CUDA
   major-version updates and `cuda-toolkit` stays on 12.x.
-- [ ] **Post-release docs**: decide whether the `v0.4.1` release (post-tag actions and
-  docs commits) is needed; tag `v0.4.0` remains on `f479b20`.
+- [x] **Post-release docs**: `v0.4.1` released with the post-tag actions and docs
+  commits; `v0.4.0` remains the previous release.
 
 ## 4. Community and documentation
 
