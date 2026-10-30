@@ -111,9 +111,9 @@ README、design 与本节已同步。
 - [x] 确认仓库不含 `.venv*`、缓存、`maps/`、`*.npz` 等生成物或超过 5 MB 的二进制
 - [x] 在至少一台 x86_64 + NVIDIA GPU 机器上跑通 README Quickstart
 - [ ] 如需 ROS2 发布，单独验证 `requires_ros` 用例与 `uv run pico-elevationmap-ros --help`
-- [ ] 打 tag `v0.4.2`（与 `pyproject.toml` / CHANGELOG 版本一致；发布后勾选）
-- [ ] 确认 tag 触发的 `.github/workflows/release.yml` 构建 / twine 检查 / GitHub Release 成功（待 v0.4.2）
-- [ ] 发布说明中写明支持矩阵、已知限制与“非生产就绪”状态（待 v0.4.2）
+- [x] 打 tag `v0.4.2`（与 `pyproject.toml` / CHANGELOG 版本一致；已推送）
+- [x] 确认 tag 触发的 `.github/workflows/release.yml` 构建 / twine 检查 / GitHub Release 成功（run `40982617995`）
+- [x] 发布说明中写明支持矩阵、已知限制与“非生产就绪”状态（Release v0.4.2）
 
 ## 6. 已知限制与非生产就绪范围
 
