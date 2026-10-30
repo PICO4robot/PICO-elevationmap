@@ -470,7 +470,7 @@ wheels = [
 
 [[package]]
 name = "pico-elevationmap"
-version = "0.4.0"
+version = "0.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "cupy-cuda12x" },
@@ -498,7 +498,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cuda-toolkit", extras = ["cudart", "nvrtc"], marker = "extra == 'cuda'", specifier = "==12.*" },
+    { name = "cuda-toolkit", extras = ["cudart", "nvrtc"], marker = "extra == 'cuda'", specifier = ">=12,<13" },
     { name = "cupy-cuda12x" },
     { name = "elevation-mapping-cupy-core", git = "https://github.com/leggedrobotics/elevation_mapping_cupy_core.git?rev=7a79a6655952aab2e0dd30d81420adbb2e64134a" },
     { name = "numpy" },
