@@ -43,8 +43,8 @@ class SingleWindowViewer:
         self.voxel_alpha = float(voxel_alpha)
         self.title = title
         self._state = {
-            "yaw": math.radians(45.0),
-            "pitch": math.radians(25.0),
+            "yaw": math.radians(-10.0),
+            "pitch": math.radians(38.0),
             "distance": 6.0,
             "drag": None,
         }
