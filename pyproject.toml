@@ -4,7 +4,7 @@
 
 [project]
 name = "pico-elevationmap"
-version = "0.4.1"
+version = "0.4.2"
 description = "PICO elevation mapping: ROS-free core with a CUDA/cupy backend"
 readme = "README.md"
 # CI 只测 Python 3.12；3.10/3.11 暂时保留在元数据范围内以兼容上游依赖，

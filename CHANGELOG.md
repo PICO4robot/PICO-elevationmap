@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 The project is pre-1.0: minor releases may contain breaking changes.
 
+## [0.4.2] - 2026-10-30
+
+### Changed
+
+- Adopted the Developer Certificate of Origin 1.1 (`DCO`); `CONTRIBUTING.md` and the
+  PR template now require `git commit -s` sign-off.
+- Corrected the `SECURITY.md` scope paths for the `pico_elevationmap` package layout.
+- Replaced the Code of Conduct contact TBD with the PICO4robot maintainer profiles and
+  best-effort reporting expectations.
+- Linked `docs/pypi-release.md` from the wheel-dependency limitation and TODO.
+
 ## [0.4.1] - 2026-10-30
 
 ### Changed
@@ -15,8 +26,6 @@ The project is pre-1.0: minor releases may contain breaking changes.
 - Dependabot now ignores CUDA major-version updates, so it cannot widen the CUDA 12.x
   constraint to an incompatible CUDA 13 toolchain.
 - Added `TODO.md` and recorded the `v0.4.0` public-release status in the readiness docs.
-- Adopted the Developer Certificate of Origin 1.1 (`DCO`); `CONTRIBUTING.md` and the
-  PR template now require `git commit -s` sign-off.
 
 ### Fixed
 
