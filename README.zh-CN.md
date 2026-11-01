@@ -62,7 +62,7 @@ uv run pico-elevationmap export --input maps/replay_map.npz --layers elevation -
 
 可选实时链路（细节见上方文档）：
 
-- **D435i 单相机**：`uv run python -m pico_elevationmap.live.realsense_live --config src/pico_elevationmap/configs/realsense_live.yaml --view --voxel-view --frames 0`（加 `--voxel-persist` 可保留视野外旧体素）
+- **D435i 单相机**：`uv run python -m pico_elevationmap.live.realsense_live --config src/pico_elevationmap/configs/realsense_live.yaml --view --voxel-view --frames 0`（加 `--voxel-persist` 可保留视野外旧体素；`--track-gyro` 可用陀螺仪跟踪相机转动）
 - **D435i + RoboSense Airy**：见 [§5.2](docs/development.md) 与 `realsense_lidar.yaml`
 - **四相机 D435i**：见 [§5.5](docs/development.md) 与 `quad_camera.yaml`
 - **ROS2 launch / Foxglove**：见 [§5.3 / §5.4](docs/development.md)

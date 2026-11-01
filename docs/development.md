@@ -187,9 +187,10 @@ uv run python -m pico_elevationmap.live.realsense_live \
   `--voxel-max-rays`、`--voxel-carve-steps` 可调清理频率/开销；
 - `--voxel-persist`：视野挪开时保留旧体素（禁用 TTL），只在重新观测到对应区域时
   按新证据刷新；单相机、四相机和相机+LiDAR 脚本都支持；`--voxel-ttl 0` 也可达到
-  同样的“不过期”效果。**它不负责相机位姿**：当前脚本仍在启动时用 `pose_from_ground`
+  同样的“不过期”效果。**它不负责相机位姿**：默认脚本仍在启动时用 `pose_from_ground`
   估计一次 `R, T`，后续反投影一直使用这组值；转动/移动相机后点云会投到错误位置，
-  导致地图发散。移动平台必须接入 `/odom` 或 IMU/gyro 并做标定和时间同步。
+  导致地图发散。若加 `--track-gyro`，会用 D435i gyro 逐帧更新旋转（不平移），需要
+  已安装 RealSense udev 规则；真正移动平台仍建议接 `/odom`。
 - 视图 target 跟随 `mapper.center`；接上里程计/位姿后，地图和视角会随运动前移；
 - `--voxel-save` 保存最后一帧 3D 面板；`--view-save` 保存完整合并窗口。
 
@@ -256,7 +257,7 @@ ros2 launch ./launch/bringup.launch.py \
     config:=$PWD/src/pico_elevationmap/configs/realsense_lidar.yaml
 ```
 
-常用参数：`view`、`voxel_view`、`frames`、`warmup`、`lidar_roll/pitch/yaw`、
+常用参数：`view`、`voxel_view`、`frames`、`warmup`、`track_gyro`、`lidar_roll/pitch/yaw`、
 `lidar_offset`、`voxel_alpha`、`voxel_persist`、`foxglove`、`save_map`、`voxel_save`、`view_save`。Livox 驱动需先
 build/source `livox_ros_driver2`；若驱动输出 PointCloud2，把
 `lidar_msg_type` 改成 `pointcloud2` 并使用对应 launch 文件。launch 只负责进程

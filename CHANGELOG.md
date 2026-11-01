@@ -19,6 +19,9 @@ The project is pre-1.0: minor releases may contain breaking changes.
 - Added `--voxel-persist` (also exposed as `voxel_persist:=true` in the ROS2 launch) to
   retain out-of-view voxels and refresh them only when observed again; it works for
   D435i, four-camera and camera+LiDAR live paths.
+- Added opt-in `--track-gyro` for D435i rotation tracking: gyro samples update the
+  camera rotation each frame while translation stays fixed. The default static-camera
+  path is unchanged, and `track_gyro:=true` is available in the ROS2 launch.
 
 ### Changed
 

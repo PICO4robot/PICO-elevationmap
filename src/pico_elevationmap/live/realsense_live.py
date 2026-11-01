@@ -27,6 +27,7 @@ from pathlib import Path
 import numpy as np
 
 from pico_elevationmap.core import io
+from pico_elevationmap.live.imu import GyroTracker
 from pico_elevationmap.viz import FoxglovePublisher, SingleWindowViewer, VoxelMap
 
 _PROGRESS_EVERY = 10
@@ -246,6 +247,11 @@ def _parse_args() -> argparse.Namespace:
         "--frames", type=int, default=30, help="frames to fuse after warmup; 0 = until quit (requires a view)"
     )
     parser.add_argument("--warmup", type=int, default=15, help="frames to discard before mapping")
+    parser.add_argument(
+        "--track-gyro",
+        action="store_true",
+        help="track camera rotation using the D435i gyro (rotation only; default off)",
+    )
     parser.add_argument("--stride", type=int, default=2, help="pixel stride for deprojection")
     parser.add_argument("--lidar-topic", type=str, default=None, help="ROS2 LiDAR topic; enables LiDAR fusion")
     parser.add_argument(
@@ -448,7 +454,17 @@ def main() -> None:
     pipeline = rs.pipeline()
     rs_cfg = rs.config()
     rs_cfg.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-    pipeline.start(rs_cfg)
+    if args.track_gyro:
+        rs_cfg.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, 200)
+    try:
+        pipeline.start(rs_cfg)
+    except RuntimeError as exc:
+        if args.track_gyro:
+            raise SystemExit(
+                "--track-gyro could not open the D435i gyro stream: "
+                f"{exc}. Install the RealSense udev rules (see docs/development.md)."
+            ) from exc
+        raise
     try:
         for _ in range(max(args.warmup, 1)):
             pipeline.wait_for_frames(timeout_ms=5000)
@@ -469,6 +485,9 @@ def main() -> None:
         )
         up, height, ratio = estimate_ground(probe)
         R, T = pose_from_ground(up, height)
+        gyro_tracker = GyroTracker(R) if args.track_gyro else None
+        if gyro_tracker is not None:
+            print("[realsense] gyro rotation tracking enabled (translation stays fixed)")
         print(
             f"[realsense] {probe.shape[0]} pts, ground up={np.round(up, 3).tolist()}, "
             f"height={height:.3f} m, inliers={ratio:.1%}"
@@ -506,8 +525,17 @@ def main() -> None:
                 min_range=depth_source.min_range,
                 max_range=depth_source.max_range,
             )
-            camera_world = (R @ points.T).T + T[:3, 3]
-            mapper.add_pose(stamp, np.eye(4))
+            if gyro_tracker is not None:
+                for motion in frames:
+                    if motion.is_motion_frame():
+                        data = motion.as_motion_frame().get_motion_data()
+                        gyro_tracker.update(
+                            float(motion.get_timestamp()) / 1000.0,
+                            np.array([data.x, data.y, data.z], dtype=np.float64),
+                        )
+                T[:3, :3] = gyro_tracker.rotation
+            camera_world = (T[:3, :3] @ points.T).T + T[:3, 3]
+            mapper.add_pose(stamp, T.copy() if gyro_tracker is not None else np.eye(4))
 
             if lidar_sub is not None and lidar_source is not None:
                 lidar_sub.spin_once()
