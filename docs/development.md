@@ -187,7 +187,9 @@ uv run python -m pico_elevationmap.live.realsense_live \
   `--voxel-max-rays`、`--voxel-carve-steps` 可调清理频率/开销；
 - `--voxel-persist`：视野挪开时保留旧体素（禁用 TTL），只在重新观测到对应区域时
   按新证据刷新；单相机、四相机和相机+LiDAR 脚本都支持；`--voxel-ttl 0` 也可达到
-  同样的“不过期”效果；
+  同样的“不过期”效果。**它不负责相机位姿**：当前脚本仍在启动时用 `pose_from_ground`
+  估计一次 `R, T`，后续反投影一直使用这组值；转动/移动相机后点云会投到错误位置，
+  导致地图发散。移动平台必须接入 `/odom` 或 IMU/gyro 并做标定和时间同步。
 - 视图 target 跟随 `mapper.center`；接上里程计/位姿后，地图和视角会随运动前移；
 - `--voxel-save` 保存最后一帧 3D 面板；`--view-save` 保存完整合并窗口。
 
