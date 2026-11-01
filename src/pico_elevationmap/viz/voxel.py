@@ -25,6 +25,9 @@ class VoxelMap:
     - ``add`` 对命中体素做正向更新；
     - ``carve_free`` 沿传感器射线对穿过的旧体素做负向更新；
     - ``prune`` 仍按 TTL 清理长期未命中的体素，作为稀疏射线/遮挡的兜底；
+      ``retain_unobserved=True`` 可禁用 TTL，视野挪开时保留旧体素；
+    - ``carve_free`` 只作用于当前帧射线，视野外旧体素不会被清掉；重新观测到
+      对应区域时才按新证据刷新。
     - ``centers_with_probabilities`` 返回到过占用概率门限的体素及其概率，
       ``centers`` 只返回位置（兼容旧调用）。
     """
@@ -40,6 +43,7 @@ class VoxelMap:
         min_log_odds: float = -2.0,
         max_log_odds: float = 3.5,
         occ_probability: float = 0.65,
+        retain_unobserved: bool = False,
     ) -> None:
         if voxel_size <= 0.0:
             raise ValueError(f"voxel_size must be > 0, got {voxel_size}")
@@ -61,6 +65,7 @@ class VoxelMap:
         self.min_log_odds = float(min_log_odds)
         self.max_log_odds = float(max_log_odds)
         self.occ_threshold = math.log(occ_probability / (1.0 - occ_probability))
+        self.retain_unobserved = bool(retain_unobserved)
         self._log_odds: dict[tuple[int, int, int], float] = {}
         self._hits: dict[tuple[int, int, int], int] = {}
         self._last_seen: dict[tuple[int, int, int], float] = {}
@@ -122,7 +127,9 @@ class VoxelMap:
                 )
 
     def prune(self, now: float, ttl: float | None = None) -> None:
-        """清理超过 TTL 未再命中的体素；ttl=0/None 表示禁用。"""
+        """清理超过 TTL 未再命中的体素；ttl=0/None 或 retain_unobserved 时禁用。"""
+        if self.retain_unobserved:
+            return
         limit = self.ttl if ttl is None else ttl
         if limit is None or limit <= 0.0:
             return

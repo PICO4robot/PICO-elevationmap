@@ -185,6 +185,9 @@ uv run python -m pico_elevationmap.live.realsense_live \
 - 动态障碍物：默认每 3 帧沿当前深度射线做 free 更新；`--voxel-ttl`（默认 2 s）
   清理未再命中的体素，`--no-voxel-carve` 关闭射线清除；`--voxel-carve-every`、
   `--voxel-max-rays`、`--voxel-carve-steps` 可调清理频率/开销；
+- `--voxel-persist`：视野挪开时保留旧体素（禁用 TTL），只在重新观测到对应区域时
+  按新证据刷新；单相机、四相机和相机+LiDAR 脚本都支持；`--voxel-ttl 0` 也可达到
+  同样的“不过期”效果；
 - 视图 target 跟随 `mapper.center`；接上里程计/位姿后，地图和视角会随运动前移；
 - `--voxel-save` 保存最后一帧 3D 面板；`--view-save` 保存完整合并窗口。
 
@@ -252,7 +255,7 @@ ros2 launch ./launch/bringup.launch.py \
 ```
 
 常用参数：`view`、`voxel_view`、`frames`、`warmup`、`lidar_roll/pitch/yaw`、
-`lidar_offset`、`voxel_alpha`、`foxglove`、`save_map`、`voxel_save`、`view_save`。Livox 驱动需先
+`lidar_offset`、`voxel_alpha`、`voxel_persist`、`foxglove`、`save_map`、`voxel_save`、`view_save`。Livox 驱动需先
 build/source `livox_ros_driver2`；若驱动输出 PointCloud2，把
 `lidar_msg_type` 改成 `pointcloud2` 并使用对应 launch 文件。launch 只负责进程
 编排，不解决 PTP/时间同步、QoS 和外参标定。

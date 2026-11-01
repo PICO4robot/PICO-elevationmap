@@ -64,7 +64,7 @@ uv run pico-elevationmap export --input maps/replay_map.npz --layers elevation -
 
 Optional live paths (details in the docs above):
 
-- **D435i live**: `uv run python -m pico_elevationmap.live.realsense_live --config src/pico_elevationmap/configs/realsense_live.yaml --view --voxel-view --frames 0`
+- **D435i live**: `uv run python -m pico_elevationmap.live.realsense_live --config src/pico_elevationmap/configs/realsense_live.yaml --view --voxel-view --frames 0` (add `--voxel-persist` to retain out-of-view voxels)
 - **D435i + RoboSense Airy**: see [§5.2](docs/development.md) and `realsense_lidar.yaml`
 - **Four-camera D435i**: see [§5.5](docs/development.md) and `quad_camera.yaml`
 - **ROS2 launch / Foxglove bridge**: see [§5.3 / §5.4](docs/development.md)

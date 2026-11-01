@@ -16,6 +16,9 @@ The project is pre-1.0: minor releases may contain breaking changes.
 - Regenerated `docs/assets/realsense_window.png` and `docs/assets/dual_voxel.png` with
   the probability voxel renderer at the preferred 3D framing (yaw −10°, pitch 38°,
   distance 6 m); the viewer now starts at that framing by default.
+- Added `--voxel-persist` (also exposed as `voxel_persist:=true` in the ROS2 launch) to
+  retain out-of-view voxels and refresh them only when observed again; it works for
+  D435i, four-camera and camera+LiDAR live paths.
 
 ### Changed
 

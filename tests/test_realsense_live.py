@@ -150,6 +150,18 @@ def test_render_voxels_rejects_bad_probability_length() -> None:
         )
 
 
+def test_voxel_map_retains_unobserved_until_observed_again() -> None:
+    voxels = VoxelMap(voxel_size=0.1, retain_unobserved=True)
+    voxels.add(np.array([[1.0, 0.0, 0.0]]), stamp=0.0)
+    assert len(voxels.centers()) == 1
+    voxels.prune(100.0)
+    assert len(voxels.centers()) == 1
+    voxels.carve_free(np.zeros(3), np.array([[5.0, 0.0, 0.0]]), max_rays=1, max_steps=64)
+    assert len(voxels.centers()) == 0
+    voxels.add(np.array([[1.0, 0.0, 0.0]]), stamp=100.0)
+    assert len(voxels.centers()) == 1
+
+
 def test_render_voxels_returns_image() -> None:
     centers = np.array([[0.0, 0.0, 0.0], [0.2, 0.1, 0.3]], dtype=np.float64)
     img = render_voxels(

@@ -52,6 +52,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--voxel-size", type=float, default=0.05)
     parser.add_argument("--voxel-alpha", type=float, default=0.55)
     parser.add_argument("--voxel-min-hits", type=int, default=1)
+    parser.add_argument(
+        "--voxel-persist",
+        action="store_true",
+        help="retain out-of-view voxels; refresh only when they are observed again",
+    )
     parser.add_argument("--voxel-hit-log-odds", type=float, default=0.85)
     parser.add_argument("--voxel-miss-log-odds", type=float, default=-0.85)
     parser.add_argument("--voxel-occ-prob", type=float, default=0.65)
@@ -180,6 +185,7 @@ def main() -> None:
             hit_log_odds=args.voxel_hit_log_odds,
             miss_log_odds=args.voxel_miss_log_odds,
             occ_probability=args.voxel_occ_prob,
+            retain_unobserved=args.voxel_persist,
         )
         if (args.voxel_view or args.voxel_save is not None)
         else None

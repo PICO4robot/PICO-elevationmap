@@ -80,6 +80,7 @@ def _launch_setup(context: object) -> list:
     view = _as_bool(LaunchConfiguration("view").perform(context))
     voxel_view = _as_bool(LaunchConfiguration("voxel_view").perform(context))
     foxglove = _as_bool(LaunchConfiguration("foxglove").perform(context))
+    persist = _as_bool(LaunchConfiguration("voxel_persist").perform(context))
     delay = float(LaunchConfiguration("start_delay").perform(context))
 
     _require_python(python)
@@ -142,6 +143,8 @@ def _launch_setup(context: object) -> list:
         cmd.append("--voxel-view")
     if foxglove:
         cmd.append("--foxglove")
+    if persist:
+        cmd.append("--voxel-persist")
     save_map = LaunchConfiguration("save_map").perform(context)
     if save_map:
         cmd += ["--save", save_map]
@@ -186,6 +189,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument("color_bands", default_value="12"),
             DeclareLaunchArgument("voxel_size", default_value="0.05"),
             DeclareLaunchArgument("voxel_alpha", default_value="0.55"),
+            DeclareLaunchArgument("voxel_persist", default_value="false"),
             DeclareLaunchArgument("save_map", default_value=""),
             DeclareLaunchArgument("voxel_save", default_value=""),
             DeclareLaunchArgument("view_save", default_value=""),
